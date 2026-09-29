@@ -1,0 +1,4 @@
+{"event": "session_started", "session_id": "109d8084652d", "condition": "posture_trigger", "timestamp": "2026-09-29T10:52:30.377096+00:00", "elapsed_sec": 0.0}
+{"event": "intervention", "session_id": "109d8084652d", "condition": "posture_trigger", "timestamp": "2026-09-29T10:52:53.444402+00:00", "elapsed_sec": 23.0673, "posture": "forward_head", "behavior": "bad_posture"}
+{"event": "intervention_ignored", "session_id": "109d8084652d", "condition": "posture_trigger", "timestamp": "2026-09-29T10:52:57.304378+00:00", "elapsed_sec": 26.9273, "posture": "forward_head", "behavior": "bad_posture", "reason": "session_finished", "observation_complete": false}
+{"event": "session_finished", "session_id": "109d8084652d", "condition": "posture_trigger", "timestamp": "2026-09-29T10:52:57.304534+00:00", "elapsed_sec": 26.9274}

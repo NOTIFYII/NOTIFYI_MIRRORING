@@ -1,0 +1,11 @@
+{"event": "session_started", "session_id": "c19b7e1aa9ee", "condition": "posture_trigger", "timestamp": "2026-09-29T10:53:43.463442+00:00", "elapsed_sec": 0.0}
+{"event": "intervention", "session_id": "c19b7e1aa9ee", "condition": "posture_trigger", "timestamp": "2026-09-29T10:53:51.467490+00:00", "elapsed_sec": 8.004, "posture": "forward_head", "behavior": "bad_posture"}
+{"event": "posture_corrected", "session_id": "c19b7e1aa9ee", "condition": "posture_trigger", "timestamp": "2026-09-29T10:53:54.396911+00:00", "elapsed_sec": 10.9247, "response_time_sec": 2.9207}
+{"event": "posture_maintenance", "session_id": "c19b7e1aa9ee", "condition": "posture_trigger", "timestamp": "2026-09-29T10:53:55.063365+00:00", "elapsed_sec": 11.5912, "good_duration_sec": 0.6665, "observation_complete": true}
+{"event": "intervention", "session_id": "c19b7e1aa9ee", "condition": "posture_trigger", "timestamp": "2026-09-29T10:53:58.497690+00:00", "elapsed_sec": 15.0342, "posture": "forward_head", "behavior": "bad_posture"}
+{"event": "posture_corrected", "session_id": "c19b7e1aa9ee", "condition": "posture_trigger", "timestamp": "2026-09-29T10:54:01.466499+00:00", "elapsed_sec": 17.9956, "response_time_sec": 2.9613}
+{"event": "posture_maintenance", "session_id": "c19b7e1aa9ee", "condition": "posture_trigger", "timestamp": "2026-09-29T10:54:04.797950+00:00", "elapsed_sec": 21.3261, "good_duration_sec": 3.3305, "observation_complete": true}
+{"event": "intervention", "session_id": "c19b7e1aa9ee", "condition": "posture_trigger", "timestamp": "2026-09-29T10:54:08.533846+00:00", "elapsed_sec": 25.0704, "posture": "forward_head", "behavior": "bad_posture"}
+{"event": "posture_corrected", "session_id": "c19b7e1aa9ee", "condition": "posture_trigger", "timestamp": "2026-09-29T10:54:09.298787+00:00", "elapsed_sec": 25.827, "response_time_sec": 0.7566}
+{"event": "posture_maintenance", "session_id": "c19b7e1aa9ee", "condition": "posture_trigger", "timestamp": "2026-09-29T10:54:09.461875+00:00", "elapsed_sec": 25.9904, "good_duration_sec": 0.1634, "observation_complete": true}
+{"event": "session_finished", "session_id": "c19b7e1aa9ee", "condition": "posture_trigger", "timestamp": "2026-09-29T10:54:14.231396+00:00", "elapsed_sec": 30.7679}

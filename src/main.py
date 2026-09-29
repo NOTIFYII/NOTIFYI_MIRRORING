@@ -41,7 +41,9 @@ from src.robot.dynamixel_driver import (  # noqa: E402
     BusError, PROJECT_ROOT, describe_hardware_error, install_signal_guards,
     load_joints, open_bus, ping_all, read_hardware_error,
 )
-from src.robot.joint_mapper import JointMapper, MappingError  # noqa: E402
+from src.robot.joint_mapper import (  # noqa: E402
+    JointMapper, MappingError, TICKS_PER_DEG,
+)
 from src.robot.joint_writer import JointWriter, WriterError  # noqa: E402
 from src.behavior.behavior_manager import BehaviorManager
 from src.behavior.executor import BehaviorExecutor  # noqa: E402
@@ -86,6 +88,11 @@ class ControlLoop(threading.Thread):
             grace_seconds=motion.get("person_lost_grace_sec", 0.5))
         self.neutral = mapper.neutral_targets()
         self._rest_targets = dict(self.neutral)
+        self._camera_gimbal = dict(config.get("camera_gimbal") or {})
+        self._camera_gimbal_enabled = bool(
+            self._camera_gimbal.get("enabled", False))
+        self._camera_gimbal_joint = self._camera_gimbal.get(
+            "joint", getattr(mapper, "neck_joint", "neck_pitch"))
         self.stop_event = threading.Event()
         self.error = None
 
@@ -101,6 +108,53 @@ class ControlLoop(threading.Thread):
         self._behavior_return_started_at = None
         self._behavior_release_sec = motion["idle_release_sec"]
         self._behavior_released = False
+        correction = config.get("correction") or {}
+        self._good_sustain_seconds = max(
+            0.0, float(correction.get("good_sustain_seconds", 0.0)))
+        self._good_since = None
+
+    def _targets_for_pose(self, pose):
+        """자세 목표를 만들고 카메라 관절은 정면 유지값으로 덮어쓴다.
+
+        몸통 목표는 기존 매핑을 그대로 사용한다. 카메라가 달린 목 관절은
+        그 목표를 그대로 따라가면 몸통과 함께 앞으로 숙여지므로, 실행 시작
+        시점의 관절 위치를 기준으로 몸통의 상대 회전만큼 반대 방향으로
+        보정한다. 보정값은 관절의 운용 한계에서 자동으로 잘린다.
+        """
+        targets = dict(self.mapper.to_targets(pose))
+        if not self._camera_gimbal_enabled:
+            return targets
+
+        joint = self._camera_gimbal_joint
+        joints = getattr(self.mapper, "joints", {})
+        spec = joints.get(joint)
+        if spec is None or joint not in targets:
+            # 테스트용 mapper나 구형 관절 설정에는 카메라 축이 없을 수 있다.
+            return targets
+
+        reference = self._rest_targets.get(joint, self.neutral.get(joint))
+        if reference is None:
+            return targets
+
+        # 각 몸통 관절의 tick 변화량을 물리적 회전각으로 바꿔 합산한다.
+        # direction은 모터 tick 방향만 나타내므로, 실제 몸통 굽힘각은
+        # direction으로 다시 나눠야 한다.
+        torso_delta_deg = 0.0
+        for name, body_spec in joints.items():
+            if name == joint or name not in targets:
+                continue
+            previous = self._rest_targets.get(name)
+            direction = float(body_spec.get("direction", 1))
+            if previous is None or direction == 0:
+                continue
+            torso_delta_deg += (
+                (targets[name] - previous) / (TICKS_PER_DEG * direction))
+
+        neck_direction = float(spec.get("direction", 1))
+        raw = reference - neck_direction * torso_delta_deg * TICKS_PER_DEG
+        targets[joint] = int(round(max(spec["min_position"],
+                                       min(spec["max_position"], raw))))
+        return targets
 
     def submit_behavior(self, action):
         """고정된 행동을 다음 제어 tick부터 재생한다."""
@@ -112,6 +166,7 @@ class ControlLoop(threading.Thread):
             self._behavior_returning = False
             self._behavior_return_started_at = None
             self._behavior_released = False
+            self._good_since = None
         return True
 
     def safe_stop(self, reason):
@@ -151,6 +206,7 @@ class ControlLoop(threading.Thread):
                 self._behavior_started_at = None
                 self._behavior_returning = True
                 self._behavior_return_started_at = now
+            self._good_since = None
 
     def _at_neutral(self):
         return all(
@@ -167,9 +223,17 @@ class ControlLoop(threading.Thread):
         """
         behavior_pose = self._behavior_pose(now)
         if behavior_pose is not None:
-            if (person_visible and state == STATE_TRACKING
-                    and posture_label != "good"):
-                return self.mapper.to_targets(behavior_pose), True
+            if person_visible and state == STATE_TRACKING:
+                if posture_label == "good":
+                    if self._good_since is None:
+                        self._good_since = now
+                    good_confirmed = (
+                        now - self._good_since >= self._good_sustain_seconds)
+                else:
+                    self._good_since = None
+                    good_confirmed = False
+                if not good_confirmed:
+                    return self._targets_for_pose(behavior_pose), True
             # 사람 이탈·관측 불가·정상 자세 복귀 시 과장 포즈를 끝내고
             # 중립으로 천천히 돌아간다.
             self._cancel_behavior(now)
@@ -243,7 +307,7 @@ class ControlLoop(threading.Thread):
                 if state == STATE_TRACKING:
                     if person_visible:
                         behavior_pose = self._behavior_pose(now)
-                        desired = self.mapper.to_targets(behavior_pose or played)
+                        desired = self._targets_for_pose(behavior_pose or played)
                     else:
                         # 사람 이탈 grace 동안에는 현재 미러링 자세를
                         # 유지하고, RETURNING 상태부터 중립으로 복귀한다.

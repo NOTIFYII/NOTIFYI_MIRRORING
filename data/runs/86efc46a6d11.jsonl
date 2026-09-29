@@ -1,0 +1,2 @@
+{"event": "session_started", "session_id": "86efc46a6d11", "condition": "mirror", "timestamp": "2026-09-29T10:38:16.449161+00:00", "elapsed_sec": 0.0}
+{"event": "session_finished", "session_id": "86efc46a6d11", "condition": "mirror", "timestamp": "2026-09-29T10:38:34.176812+00:00", "elapsed_sec": 17.7276}

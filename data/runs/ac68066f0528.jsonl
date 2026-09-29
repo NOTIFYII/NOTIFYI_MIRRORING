@@ -1,0 +1,10 @@
+{"event": "session_started", "session_id": "ac68066f0528", "condition": "posture_trigger", "timestamp": "2026-09-29T10:48:58.187748+00:00", "elapsed_sec": 0.0}
+{"event": "intervention", "session_id": "ac68066f0528", "condition": "posture_trigger", "timestamp": "2026-09-29T10:49:07.188547+00:00", "elapsed_sec": 9.0008, "posture": "forward_head", "behavior": "bad_posture"}
+{"event": "posture_corrected", "session_id": "ac68066f0528", "condition": "posture_trigger", "timestamp": "2026-09-29T10:49:11.624820+00:00", "elapsed_sec": 13.4281, "response_time_sec": 4.4273}
+{"event": "posture_maintenance", "session_id": "ac68066f0528", "condition": "posture_trigger", "timestamp": "2026-09-29T10:49:11.927650+00:00", "elapsed_sec": 13.7307, "good_duration_sec": 0.3026, "observation_complete": true}
+{"event": "intervention", "session_id": "ac68066f0528", "condition": "posture_trigger", "timestamp": "2026-09-29T10:49:19.224702+00:00", "elapsed_sec": 21.037, "posture": "forward_head", "behavior": "bad_posture"}
+{"event": "posture_corrected", "session_id": "ac68066f0528", "condition": "posture_trigger", "timestamp": "2026-09-29T10:49:20.289255+00:00", "elapsed_sec": 22.0942, "response_time_sec": 1.0572}
+{"event": "posture_maintenance", "session_id": "ac68066f0528", "condition": "posture_trigger", "timestamp": "2026-09-29T10:49:24.059100+00:00", "elapsed_sec": 25.8624, "good_duration_sec": 3.7682, "observation_complete": true}
+{"event": "intervention", "session_id": "ac68066f0528", "condition": "posture_trigger", "timestamp": "2026-09-29T10:49:27.260678+00:00", "elapsed_sec": 29.0729, "posture": "forward_head", "behavior": "bad_posture"}
+{"event": "intervention_ignored", "session_id": "ac68066f0528", "condition": "posture_trigger", "timestamp": "2026-09-29T10:49:31.338954+00:00", "elapsed_sec": 33.1512, "posture": "forward_head", "behavior": "bad_posture", "reason": "session_finished", "observation_complete": false}
+{"event": "session_finished", "session_id": "ac68066f0528", "condition": "posture_trigger", "timestamp": "2026-09-29T10:49:31.339163+00:00", "elapsed_sec": 33.1514}

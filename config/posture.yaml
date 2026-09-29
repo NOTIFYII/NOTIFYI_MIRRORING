@@ -25,26 +25,33 @@ perception:
   invert_neck: false
 
 angles:
-  max_torso_pitch_deg: 60   # posture_trigger 시연용 과장 포즈 상한
-  max_neck_pitch_deg: 35    # 목 관절의 현재 소프트 한계(+/-35도)
+  max_torso_pitch_deg: 100   # posture_trigger 시연용 과장 포즈 상한
+  max_neck_pitch_deg: 50    # 목 관절의 현재 소프트 한계(+/-35도)
   median_window: 7          # 7프레임이면 스파이크 방어하면서 지연 최소화
   smoothing_alpha: 0.55     # 상체용. 0.55면 반응 빠르면서 떨림 억제
   neck_smoothing_alpha: 0.35  # 2D 비율은 Z축보다 안정적 → 적당히 반응
+
+# 맨 위 관절(ID 9)에 달린 카메라를 몸통 움직임의 반대 방향으로 보정한다.
+# 카메라가 앞으로 숙여지지 않도록 목 관절은 자세 반응값을 직접 따라가지
+# 않고, 시작 시점의 방향을 기준으로 정면을 유지한다.
+camera_gimbal:
+  enabled: true
+  joint: neck_pitch
 
 # 상체각을 4축에 나누는 비율. 합이 1.0.
 # 베이스는 위쪽 4단 전체를 이고 있어 모멘트가 가장 크므로 가장 적게 준다.
 # 실제로 base_pitch 가 과부하(0x20)로 한 번 고장난 적이 있다.
 distribution:
-  base_pitch: 0.15
-  waist_pitch: 0.25
-  spine_lower_pitch: 0.30
+  base_pitch: 0.25
+  waist_pitch: 0.20
+  spine_lower_pitch: 0.25
   spine_upper_pitch: 0.30
 
 motion:
   profile_velocity: 40
   profile_acceleration: 20
   max_step_deg: 1.5           # 제어 주기당 관절 최대 변화. 50Hz 면 초당 75도
-  person_lost_grace_sec: 0.5  # 이만큼 연속으로 안 보여야 복귀 시작
+  person_lost_grace_sec: 1.5  # 이만큼 연속으로 안 보여야 복귀 시작
   return_to_neutral_sec: 2.0  # 사람이 사라지면 이 시간에 걸쳐 중립 복귀
   idle_release_sec: 3.0       # 중립 도달 후 토크 해제까지 대기
   # NOTE: 단위 테스트(tests/test_safety.py)는 빠른 실행을 위해
@@ -53,7 +60,8 @@ motion:
 
 # 교정 판단 정책. BehaviorManager 가 이 값을 읽는다.
 correction:
-  sustain_seconds: 3.0      # 나쁜 자세가 이만큼 지속돼야 교정 트리거
+  sustain_seconds: 1.5      # 나쁜 자세가 이만큼 지속돼야 교정 트리거
+  good_sustain_seconds: 1.5  # 정상 판정이 잠깐 유지된 뒤 중립 복귀
   max_corrections_per_run: null # 정상 복귀 후 나쁜 자세 에피소드마다 재호출
   cooldown_seconds: 0.0     # 정상 복귀/재감지 정책만으로 재호출을 제어
   escalation_seconds: 60.0  # 같은 문제 반복 시 강도 높이는 기준
@@ -92,8 +100,8 @@ intervention:
     # 몸통 60도는 4개 관절에 분배된다. 목은 현재 관절 소프트 한계가
     # 35도이므로 50도를 요청해도 실제 목표는 안전 게이트에서 제한된다.
     bad_posture:
-      torso_pitch_deg: 60.0
-      neck_pitch_deg: 35.0
+      torso_pitch_deg: 100.0
+      neck_pitch_deg: 50.0
 
 # TTS는 별도 스레드에서 실행된다. 기본은 로그만 남기는 dry-run이다.
 audio:

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 520">
+<rect width="640" height="520" fill="#152033"/>
+<text x="12" y="505" fill="white" font-size="13">forward_head | torso 0.0 | neck 16.8 | lateral 7.7 | repeat 0</text>
+<line x1="381.0176" y1="417.4464" x2="135.9552" y2="383.82239999999996" stroke="#70dfbb" stroke-width="3"/>
+<line x1="370.144" y1="294.35040000000004" x2="287.6352" y2="267.37919999999997" stroke="#70dfbb" stroke-width="3"/>
+<circle cx="351.4624" cy="312.4992" r="5" fill="#ffc266"/>
+<text x="358.4624" y="312.4992" fill="white" font-size="12">0</text>
+<circle cx="370.144" cy="294.35040000000004" r="5" fill="#ffc266"/>
+<text x="377.144" y="294.35040000000004" fill="white" font-size="12">7</text>
+<circle cx="287.6352" cy="267.37919999999997" r="5" fill="#ffc266"/>
+<text x="294.6352" y="267.37919999999997" fill="white" font-size="12">8</text>
+<circle cx="381.0176" cy="417.4464" r="5" fill="#ffc266"/>
+<text x="388.0176" y="417.4464" fill="white" font-size="12">11</text>
+<circle cx="135.9552" cy="383.82239999999996" r="5" fill="#ffc266"/>
+<text x="142.9552" y="383.82239999999996" fill="white" font-size="12">12</text>
+</svg>

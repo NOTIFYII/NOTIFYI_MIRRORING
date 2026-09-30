@@ -1,0 +1,8 @@
+{"event": "session_started", "session_id": "ec23c2898269", "condition": "posture_trigger", "timestamp": "2026-09-29T12:01:58.809388+00:00", "elapsed_sec": 0.0}
+{"event": "intervention", "session_id": "ec23c2898269", "condition": "posture_trigger", "timestamp": "2026-09-29T12:02:11.821067+00:00", "elapsed_sec": 13.0117, "posture": "forward_head", "behavior": "bad_posture"}
+{"event": "posture_corrected", "session_id": "ec23c2898269", "condition": "posture_trigger", "timestamp": "2026-09-29T12:02:20.222125+00:00", "elapsed_sec": 21.4026, "response_time_sec": 8.391}
+{"event": "posture_maintenance", "session_id": "ec23c2898269", "condition": "posture_trigger", "timestamp": "2026-09-29T12:02:20.591051+00:00", "elapsed_sec": 21.7724, "good_duration_sec": 0.3698, "observation_complete": true}
+{"event": "intervention", "session_id": "ec23c2898269", "condition": "posture_trigger", "timestamp": "2026-09-29T12:02:26.907601+00:00", "elapsed_sec": 28.0982, "posture": "forward_head", "behavior": "bad_posture"}
+{"event": "posture_corrected", "session_id": "ec23c2898269", "condition": "posture_trigger", "timestamp": "2026-09-29T12:02:27.889944+00:00", "elapsed_sec": 29.0636, "response_time_sec": 0.9654}
+{"event": "posture_maintenance", "session_id": "ec23c2898269", "condition": "posture_trigger", "timestamp": "2026-09-29T12:02:27.915469+00:00", "elapsed_sec": 29.0978, "good_duration_sec": 0.0342, "observation_complete": true}
+{"event": "session_finished", "session_id": "ec23c2898269", "condition": "posture_trigger", "timestamp": "2026-09-29T12:02:36.054548+00:00", "elapsed_sec": 37.2451}

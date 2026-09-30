@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>자세 피드백 로봇 파일럿 설문 분석 및 교수님 미팅 논의안</title>
+<style>
+@page { size: A4; margin: 16mm 17mm 17mm 17mm; }
+* { box-sizing: border-box; }
+body { font-family: "Apple SD Gothic Neo", "Noto Sans CJK KR", "Malgun Gothic", sans-serif; color:#25313c; font-size:10.2pt; line-height:1.55; margin:0; }
+h1 { color:#17324d; font-size:25pt; line-height:1.2; margin:0 0 5pt; }
+.subtitle { color:#697586; font-size:12pt; margin:0 0 16pt; }
+h2 { color:#17324d; font-size:15pt; border-bottom:1.5pt solid #2c6eaa; padding-bottom:4pt; margin:18pt 0 8pt; page-break-after:avoid; }
+h3 { color:#2c6eaa; font-size:11.5pt; margin:10pt 0 4pt; page-break-after:avoid; }
+p { margin:0 0 7pt; }
+ul, ol { margin:3pt 0 8pt 19pt; padding:0; }
+li { margin:0 0 3pt; }
+.callout { background:#eaf3fa; border:1pt solid #2c6eaa; padding:10pt 12pt; margin:8pt 0 12pt; color:#17324d; }
+.conclusion { background:#eef7f1; border:1pt solid #2d7a55; padding:10pt 12pt; margin:13pt 0 8pt; color:#17324d; }
+.meta { color:#697586; font-size:9pt; }
+table { width:100%; border-collapse:collapse; margin:6pt 0 8pt; page-break-inside:auto; }
+thead { display:table-header-group; }
+tr { page-break-inside:avoid; page-break-after:auto; }
+th { background:#17324d; color:white; font-weight:bold; text-align:left; padding:5pt 5pt; border:0.5pt solid #d5dde5; }
+td { padding:5pt 5pt; vertical-align:top; border:0.5pt solid #d5dde5; }
+tbody tr:nth-child(even) { background:#f3f5f7; }
+.scores th:nth-child(1) { width:10%; }
+.scores th:nth-child(2) { width:34%; }
+.scores th:nth-child(3) { width:8%; }
+.scores th:nth-child(4) { width:25%; }
+.scores th:nth-child(5) { width:23%; }
+.questions th:first-child { width:28%; }
+.questions th:last-child { width:72%; }
+.conditions th:nth-child(1) { width:22%; }
+.conditions th:nth-child(2) { width:20%; }
+.conditions th:nth-child(3) { width:28%; }
+.conditions th:nth-child(4) { width:30%; }
+.source { color:#2c6eaa; font-size:8.5pt; margin-top:12pt; }
+.page-break { page-break-before:always; }
+</style>
+</head>
+<body>
+<h1>자세 피드백 로봇</h1>
+<div class="subtitle">파일럿 설문 분석 및 교수님 미팅 논의안</div>
+
+<div class="callout"><b>핵심 결론</b><br>
+로봇의 움직임은 잘 보이고 자세 교정 신호로도 이해되었다. 다음 단계에서는 짧은 자세 변화와 자연스러운 작업 자세에 대한 오검출을 줄이고, 피드백을 놓친 사용자에게 부담이 적은 추가 반응을 설계해야 한다.</div>
+<p class="meta">응답 4건 기준. 이 자료는 효과 검증보다 문제 발견과 다음 실험 설계를 위한 논의 자료다.</p>
+
+<h2>1. 이번 설문에서 확인된 핵심</h2>
+<p>응답 4건을 보면 로봇의 움직임은 대체로 잘 인지되었고, 움직임이 자세 교정 신호라는 점도 전달되었다. 참가자들은 로봇이 잘못된 자세를 포착한다고 느꼈으며, 로봇이 반응한 뒤 자세를 확인하거나 바꾸려는 행동도 나타났다.</p>
+<p>반면 짧은 자세 변화나 자연스러운 작업 자세까지 잘못된 자세로 판단할 가능성이 확인되었다. 로봇이 너무 자주 반응하거나, 반응의 의미를 시각적으로 알아차리지 못하는 상황도 있었다. 따라서 다음 단계의 핵심은 필요한 순간에만 확실하게 반응하고, 반응을 놓쳤을 때는 부담이 적은 방식으로 한 번 더 알려주는 것이다.</p>
+
+<h2>2. 정량 응답 요약</h2>
+<p>척도는 1점(전혀 그렇지 않다)부터 5점(매우 그렇다)이다. 평균은 응답이 모두 있는 문항만 4명 기준으로 계산했다.</p>
+<table class="scores"><thead><tr><th>영역</th><th>문항</th><th>평균</th><th>응답 분포</th><th>해석</th></tr></thead><tbody>
+<tr><td>인지</td><td>로봇이 움직이는 것을 알아차렸다</td><td>4.50</td><td>4점 2명, 5점 2명</td><td>움직임 자체는 잘 보임</td></tr>
+<tr><td>인지</td><td>집중 중에도 움직임을 알아차렸다</td><td>4.25</td><td>2점 1명, 5점 3명</td><td>집중 중에도 대체로 인지</td></tr>
+<tr><td>이해</td><td>움직임이 자세 교정 의미임을 알았다</td><td>4.50</td><td>4점 2명, 5점 2명</td><td>의미 전달은 명확함</td></tr>
+<tr><td>행동</td><td>움직인 후 자세를 바꾸었다</td><td>4.00</td><td>3점 1명, 4점 2명, 5점 1명</td><td>교정 행동으로 이어짐</td></tr>
+<tr><td>행동</td><td>움직인 후 내 자세를 확인했다</td><td>4.25</td><td>4점 3명, 5점 1명</td><td>자기 자세 확인을 유도</td></tr>
+<tr><td>행동</td><td>바른 자세를 유지하려고 했다</td><td>4.25</td><td>3점 1명, 4점 1명, 5점 2명</td><td>유지 의도도 확인됨</td></tr>
+<tr><td>빈도</td><td>로봇이 자주 움직인다고 느꼈다</td><td>3.25</td><td>2점 2명, 4점 1명, 5점 1명</td><td>빈도에 대한 의견이 갈림</td></tr>
+<tr><td>민감도</td><td>잠깐 흐트러져도 움직였다</td><td>4.25</td><td>3점 1명, 4점 1명, 5점 2명</td><td>짧은 이탈에도 민감하게 반응</td></tr>
+<tr><td>방해감</td><td>작업 집중을 방해했다</td><td>2.75</td><td>2점 2명, 3점 1명, 4점 1명</td><td>방해감은 낮지만 제거되지는 않음</td></tr>
+<tr><td>거슬림</td><td>로봇 움직임이 거슬렸다</td><td>-</td><td>1명 응답: 2점</td><td>표본 부족으로 판단 보류</td></tr>
+<tr><td>수용성</td><td>바른 자세라고 생각했는데 반응했다</td><td>-</td><td>1명 응답: 4점</td><td>오검출 가능성 확인</td></tr>
+<tr><td>사용 의향</td><td>실제 작업 중에도 사용하고 싶다</td><td>-</td><td>1명 응답: 4점</td><td>긍정 신호이나 추가 측정 필요</td></tr>
+</tbody></table>
+<p class="meta">해석상 주의: 전체 응답은 4건이며 마지막 3개 문항은 1명만 응답했다. 해당 문항은 평균 비교가 아니라 후속 질문을 정하는 참고 신호로만 사용한다.</p>
+
+<h2>3. 자유응답에서 반복된 의견</h2>
+<h3>확인된 강점</h3>
+<ul>
+<li>앞으로 구부정한 자세를 로봇이 따라 하는 반응이 인상적이었다.</li>
+<li>다양한 잘못된 자세를 생각보다 잘 잡아냈다.</li>
+<li>자세가 무너지는 순간을 알려줘 다시 교정할 수 있었다.</li>
+<li>바른 자세로 돌아왔을 때 반응이 빨라 교정한 보람을 느꼈다.</li>
+</ul>
+<h3>개선이 필요한 문제</h3>
+<ol>
+<li><b>좌우 기울기 미감지:</b> 앞으로 숙이는 자세 외에 좌우로 삐뚤어진 자세도 다뤄야 한다.</li>
+<li><b>짧은 이탈에 대한 과민 반응:</b> 자연스럽게 고개를 조금 숙이는 작업 자세까지 잘못된 자세로 판단할 수 있다.</li>
+<li><b>반응 후 추가 자극 부족:</b> 한 번 구부린 뒤 계속 자세를 유지해도 후속 반응이 없다.</li>
+<li><b>피드백을 놓칠 가능성:</b> 이어폰을 사용하거나 화면에 집중하면 로봇의 움직임을 보지 못할 수 있다.</li>
+<li><b>작업 방해와 동기부여의 균형:</b> 피드백은 분명해야 하지만 작업 흐름을 끊으면 안 된다.</li>
+<li><b>카메라 배치 문제:</b> 노트북 카메라는 노트북을 닫으면 사용할 수 없으므로 외부 USB 카메라가 필요하다.</li>
+</ol>
+
+<div class="page-break"></div>
+<h2>4. 교수님과 논의할 핵심 연구 질문</h2>
+<table class="questions"><thead><tr><th>논의 주제</th><th>교수님께 확인할 내용</th></tr></thead><tbody>
+<tr><td><b>언제 반응해야 하는가?</b></td><td>잘못된 자세가 몇 초 이상 지속되어야 하는가? 자연스러운 작업 자세와 교정이 필요한 자세를 어떤 기준으로 구분할 것인가?</td></tr>
+<tr><td><b>한 번 반응한 뒤에는 어떻게 할 것인가?</b></td><td>1차 반응을 놓쳤을 때 2차 반응을 언제 제공할 것인가? 반복 반응은 더 강하게 할 것인가, 다른 방식으로 바꿀 것인가?</td></tr>
+<tr><td><b>어떤 피드백이 작업을 방해하지 않는가?</b></td><td>로봇 움직임만으로 충분한가? 시각 피드백을 놓치는 경우 LED, 짧은 소리, 화면 표시 중 무엇을 추가할 것인가?</td></tr>
+<tr><td><b>무엇을 감지 범위에 포함할 것인가?</b></td><td>앞뒤 굽힘, 좌우 기울기, 엉덩이가 앞으로 빠지는 자세를 어떤 우선순위로 추가할 것인가?</td></tr>
+</tbody></table>
+
+<h2>5. 다음 실험에서 제안하는 최소 변경</h2>
+<ul>
+<li>나쁜 자세가 일정 시간 유지될 때만 1차 반응하도록 지속 시간 조건을 둔다.</li>
+<li>good 판정이 한 프레임만 잡혀도 즉시 복귀하지 않도록 정상 자세 확인 시간을 둔다.</li>
+<li>1차 반응 뒤에도 나쁜 자세가 지속되면 한 번만 추가 반응한다.</li>
+<li>좌우 기울기 판정을 별도 축으로 기록해 기존 앞굽힘 판정과 비교한다.</li>
+</ul>
+<table class="conditions"><thead><tr><th>조건</th><th>나쁜 자세 지속</th><th>추가 반응</th><th>목적</th></tr></thead><tbody>
+<tr><td>A. 현재 방식</td><td>3초</td><td>없음</td><td>기준선 확보</td></tr>
+<tr><td>B. 지속시간 강화</td><td>5초</td><td>없음</td><td>오검출 감소 확인</td></tr>
+<tr><td>C. 2단계 피드백</td><td>3초</td><td>10~15초 후 1회</td><td>놓친 피드백 보완</td></tr>
+<tr><td>D. 작업 적합형</td><td>5초</td><td>15초 후 다른 방식 1회</td><td>방해감과 효과 균형 확인</td></tr>
+</tbody></table>
+
+<h2>6. 다음 실험 운영안</h2>
+<ul>
+<li>참가자가 실제로 하던 작업을 직접 가져오게 하여 자연스러운 작업 자세를 관찰한다.</li>
+<li>한 조건당 10~15분을 권장하고, 5분 조건은 탐색용으로만 사용한다.</li>
+<li>참가자마다 카메라 위치와 의자 위치를 고정한다.</li>
+<li>외부 USB 카메라를 사용하고, 로봇 상단에 장착할 경우 시작 시 정면을 향하도록 맞춘다.</li>
+<li>반응 횟수, 오검출 횟수, 반응을 놓친 횟수, 자세 교정까지 걸린 시간, 작업 중단 여부를 기록한다.</li>
+<li>설문은 인지, 의미 이해, 자세 변화, 작업 방해를 행동 중심으로 묻는다.</li>
+</ul>
+
+<h2>7. 이번 미팅에서 결정하면 좋은 사항</h2>
+<ol>
+<li>다음 버전에서 좌우 기울기 감지를 바로 추가할 것인가?</li>
+<li>오검출 감소를 위해 나쁜 자세 지속 시간을 3초에서 5초로 늘릴 것인가?</li>
+<li>반응을 놓친 사용자를 위한 2차 피드백을 어떤 방식으로 만들 것인가?</li>
+<li>외부 USB 카메라를 최종 실험 장비로 확정할 것인가?</li>
+<li>다음 실험은 실제 작업 10~15분 조건으로 진행할 것인가?</li>
+<li>1순위 성공 기준을 자세 교정 효과와 작업 방해 최소화 중 어디에 둘 것인가?</li>
+</ol>
+
+<div class="conclusion"><b>한 문장 결론</b><br>
+현재 프로토타입은 로봇의 움직임이 보이고 자세 교정 신호로 이해되는 단계까지 가능성을 보였다. 다음 단계에서는 오검출과 과도한 반응을 줄이면서 놓친 사용자에게 한 번 더 전달하는 설계를 검증해야 한다.</div>
+<p class="source">출처: <a href="https://docs.google.com/forms/d/1_hxZl7CBLI056WTIhxe7DMdtkhvtPdQ7QC6Q0AJZIxI/edit#responses">자세 피드백 방식 체험 설문 응답</a></p>
+</body>
+</html>

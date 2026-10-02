@@ -89,6 +89,11 @@ def ticks_to_degrees(ticks):
     return ticks * 360.0 / TICKS_PER_REV
 
 
+def normalize_ticks(ticks, wrap=False):
+    """한 바퀴 기준 관절의 현재 tick을 0~4095로 정규화한다."""
+    return ticks % TICKS_PER_REV if wrap else ticks
+
+
 def getch_nonblocking(timeout):
     if select.select([sys.stdin], [], [], timeout)[0]:
         return sys.stdin.read(1)
@@ -153,6 +158,7 @@ def main():
                 sys.exit(f"ID {missing} 가 버스에 없습니다. 응답: {sorted(present)}")
 
             modes, limits, positions, origins = {}, {}, {}, {}
+            wraps = {}
             marks = {}
 
             # 운용 한계는 config/joints.yaml 이 단일 소스다.
@@ -160,14 +166,17 @@ def main():
             for name, spec in load_joints().items():
                 low, high = spec.get("min_position"), spec.get("max_position")
                 if spec.get("id") in ids and low is not None and high is not None:
-                    operational[spec["id"]] = (low, high, name)
+                    operational[spec["id"]] = (
+                        low, high, name, bool(spec.get("wrap_position", False)))
 
             # 접힌 자세에서 토크를 켜면 아래 단이 즉시 과부하로 죽는다.
             # 실제로 base_pitch 가 이 방식으로 한 번 고장났다.
             folded = []
-            for motor_id, (low, high, name) in operational.items():
-                position = read4(packet, port, motor_id,
-                                 ADDR_PRESENT_POSITION, f"ID {motor_id} 현재 위치")
+            for motor_id, (low, high, name, wrap) in operational.items():
+                raw_position = read4(
+                    packet, port, motor_id, ADDR_PRESENT_POSITION,
+                    f"ID {motor_id} 현재 위치")
+                position = normalize_ticks(raw_position, wrap)
                 if not low <= position <= high:
                     excess = position - high if position > high else position - low
                     folded.append(
@@ -201,6 +210,9 @@ def main():
                 if mode not in (MODE_POSITION, MODE_VELOCITY):
                     sys.exit(f"ID {motor_id} 는 지원하지 않는 모드입니다 ({mode}).")
                 modes[motor_id] = mode
+                wrap = operational.get(
+                    motor_id, (None, None, None, False))[3]
+                wraps[motor_id] = wrap
 
                 saved_profile[motor_id] = (
                     read4(packet, port, motor_id, ADDR_PROFILE_VELOCITY, "Velocity"),
@@ -210,13 +222,14 @@ def main():
                 if mode == MODE_POSITION:
                     low = read4(packet, port, motor_id, ADDR_MIN_POSITION, "Min Position")
                     high = read4(packet, port, motor_id, ADDR_MAX_POSITION, "Max Position")
-                    start = read4(packet, port, motor_id,
-                                  ADDR_PRESENT_POSITION, "현재 위치")
+                    start = normalize_ticks(
+                        read4(packet, port, motor_id,
+                              ADDR_PRESENT_POSITION, "현재 위치"), wrap)
                     positions[motor_id] = start
                     origins[motor_id] = start
                     bound_low, bound_high = low + EDGE_MARGIN, high - EDGE_MARGIN
                     if motor_id in operational:
-                        op_low, op_high, _ = operational[motor_id]
+                        op_low, op_high, _, _ = operational[motor_id]
                         bound_low = max(bound_low, op_low)
                         bound_high = min(bound_high, op_high)
                     if args.no_travel_limit:
@@ -312,8 +325,10 @@ def main():
                         continue
 
                     if key in (",", "."):
-                        current = read4(packet, port, active,
-                                        ADDR_PRESENT_POSITION, "현재 위치")
+                        current = normalize_ticks(
+                            read4(packet, port, active,
+                                  ADDR_PRESENT_POSITION, "현재 위치"),
+                            wraps.get(active, False))
                         bound = "min" if key == "," else "max"
                         marks.setdefault(active, {})[bound] = current
                         print(f"\rID {active} {bound} = {current} ticks "
@@ -321,8 +336,10 @@ def main():
                         continue
 
                     if key == "p":
-                        current = read4(packet, port, active,
-                                        ADDR_PRESENT_POSITION, "현재 위치")
+                        current = normalize_ticks(
+                            read4(packet, port, active,
+                                  ADDR_PRESENT_POSITION, "현재 위치"),
+                            wraps.get(active, False))
                         print(f"\rID {active} 현재 {current} ticks "
                               f"({ticks_to_degrees(current):.1f}도)\r")
                         continue

@@ -47,7 +47,7 @@ joints:
     id: 4
     group: torso
     input_axis: torso_yaw
-    direction: -1             # 텔레옵 w=오른쪽, s=왼쪽
+    direction: 1              # ID 2와 동일: 텔레옵 w=왼쪽, s=오른쪽
     zero_position: 2040
     min_position: 0
     max_position: 4095

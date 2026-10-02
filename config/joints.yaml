@@ -47,12 +47,12 @@ joints:
     id: 4
     group: torso
     input_axis: torso_yaw
-    direction: 1
+    direction: -1             # 텔레옵 w=오른쪽, s=왼쪽
     zero_position: 2040
     min_position: 0
     max_position: 4095
-    relative_min_deg: -12
-    relative_max_deg: 12
+    relative_min_deg: -60
+    relative_max_deg: 60
     wrap_position: true
 
   waist_upper_pitch:

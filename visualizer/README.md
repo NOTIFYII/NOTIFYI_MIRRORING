@@ -4,6 +4,21 @@
 브라우저에서 관절 움직임을 확인할 수 있지만, 현재 UI는 모터에 명령을 보내지 않는
 읽기 전용 구조다.
 
+## 배포 페이지
+
+`visualizer/`는 GitHub Pages로 배포할 수 있는 정적 페이지다. `minwook` 브랜치에
+변경사항을 push하면 `.github/workflows/deploy-visualizer.yml`이 자동으로 배포한다.
+
+저장소가 `NOTIFYII/NOTIFYI_MIRRORING`이라면 배포 주소는 보통 다음 형식이다.
+
+```text
+https://notifyii.github.io/NOTIFYI_MIRRORING/
+```
+
+배포 페이지에서는 샘플 모드와 3D 조작만 사용할 수 있다. 브라우저가 GitHub Pages에서
+노트북의 `/dev/ttyACM0`에 직접 접근할 수 없기 때문에 실제 모터 위치 읽기는 아래의
+로컬 Python 서버를 실행하고 `http://127.0.0.1:8765`로 접속할 때 사용한다.
+
 ## 샘플 모드
 
 하드웨어 없이 실행한다.

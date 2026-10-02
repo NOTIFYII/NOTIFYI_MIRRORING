@@ -23,23 +23,23 @@ joints:
     id: 2
     group: torso
     input_axis: torso_yaw
-    direction: 1              # 실제 좌우 방향 테스트 후 -1/1 확정
+    direction: 1              # 텔레옵 w=왼쪽, s=오른쪽
     zero_position: 1034
     min_position: 0
     max_position: 4095
-    relative_min_deg: -12
-    relative_max_deg: 12
+    relative_min_deg: -60
+    relative_max_deg: 60
     wrap_position: true
 
   waist_lower_pitch:
     id: 3
     group: torso
     input_axis: torso_pitch
-    direction: 1              # 실제 앞/뒤 방향 테스트 후 -1/1 확정
+    direction: -1             # 입력 +가 앞쪽, 텔레옵 s=앞쪽
     zero_position: 3059
     min_position: 0
     max_position: 4095
-    relative_min_deg: -12
+    relative_min_deg: -21.1   # zero 3059 -> 2819 ticks
     relative_max_deg: 12
     wrap_position: true
 

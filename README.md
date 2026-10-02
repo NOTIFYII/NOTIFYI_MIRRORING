@@ -19,7 +19,7 @@
 
 - 로봇 탑재 USB 카메라 중심의 MediaPipe 자세 인식
 - 노트북 웹캠 보조 입력
-- Dynamixel 2XL430-W250 5축 pitch 컬럼 제어
+- Dynamixel 2XL430-W250 6축 pitch/yaw/roll 컬럼 제어
 - 카메라 탑재를 고려한 neck_pitch 짐벌 보정
 - SafetyGate, slew 제한, safe stop
 - 실험 효과 평가용 JSONL 이벤트와 CSV 요약
@@ -64,19 +64,22 @@ python -m src.main --no-preview --move \
 
 | 관절 | ID | 용도 |
 | --- | ---: | --- |
-| base_pitch | 1 | 하체·상단 하중 |
-| waist_pitch | 4 | 허리 |
-| spine_lower_pitch | 5 | 척추 하단 |
-| spine_upper_pitch | 8 | 척추 상단, 방향 반전 |
-| neck_pitch | 9 | 목·카메라 짐벌 |
-| 보조축 | 2, 3, 6, 7, 10 | 현재 미사용 |
+| waist_lower_yaw | 2 | 허리 아래 좌우 |
+| waist_lower_pitch | 3 | 허리 아래 상하 |
+| waist_upper_yaw | 4 | 허리 위 좌우 |
+| waist_upper_pitch | 5 | 허리 위 상하 |
+| neck_roll | 6 | 목 아래 갸우뚱 |
+| neck_yaw | 7 | 목 좌우 |
+| 유휴축 | 1, 8 | 현재 미사용 |
 
-자세와 모터의 기준값은 config/joints.yaml과 config/posture.yaml에서 관리한다. zero_position은 세워진 기준 자세의 tick이지, 어떤 누운 상태에서도 자동 복구할 수 있는 만능 원점이 아니다.
+자세와 모터의 기준값은 config/joints.yaml과 config/posture.yaml에서 관리한다.
+현재 zero_position은 연결된 상태의 초기 기준값이며, 로봇을 정상 자세로 세운 뒤
+다시 측정해야 한다. 새 축의 방향은 실제 단축 테스트 후 direction을 확정한다.
 
 모터를 연결하기 전에는 다음을 먼저 확인한다.
 
 ~~~bash
-python scripts/scan_dynamixel.py --port /dev/ttyUSB0 --baud 1000000
+python scripts/scan_dynamixel.py --port /dev/ttyACM0 --baud 57600 --proto 2.0
 python scripts/check_env.py
 ~~~
 
@@ -116,6 +119,7 @@ python scripts/summarize_posture_logs.py \
 - 상태 기계: docs/STATE_MACHINE.md
 - 안전 운용 절차: docs/SAFETY_RUNBOOK.md
 - 자세 인식과 카메라 배치: docs/PERCEPTION_AND_CAMERA.md
+- 능동 카메라 기반 상체 자세 평가안: docs/ACTIVE_CAMERA_POSTURE_ASSESSMENT.md
 - 실험 프로토콜: docs/EXPERIMENT_PROTOCOL.md
 - 로그 기반 효과 평가: docs/EXPERIMENT_LOGGING.md
 - 로그 스키마: docs/LOG_SCHEMA.md
@@ -123,6 +127,7 @@ python scripts/summarize_posture_logs.py \
 - 개인정보 원칙: docs/PRIVACY.md
 - 초기화와 복구의 현재 상태: docs/INITIALIZATION_AND_RECOVERY.md
 - LeRobot 참고와 적용 범위: docs/LEROBOT_INTEGRATION.md
+- Three.js 관절 시각화: visualizer/README.md
 - 의사결정 기록: docs/decisions/
 - 탁상용 로봇 벤치마크: docs/BENCHMARK_DESKTOP_ROBOTS.md
 - 공학·디자인 설계 조사: docs/DESKTOP_ROBOT_DESIGN_RESEARCH.md

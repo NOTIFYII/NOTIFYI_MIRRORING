@@ -18,7 +18,7 @@ v4l2-ctl --list-devices
 fuser /dev/video0
 ~~~
 
-현재 scripts/check_camera.py는 비어 있는 placeholder이므로 카메라 확인에는 v4l2 명령과 src.main dry-run을 사용한다.
+카메라 확인에는 v4l2 명령과 src.main dry-run을 사용한다.
 
 ## Dynamixel 스캔
 

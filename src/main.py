@@ -25,7 +25,7 @@ from src.perception.pose_estimator import (  # noqa: E402
     PoseEstimator, draw_angle_bar, draw_overlay, draw_skeleton,
 )
 from src.perception.posture_features import (  # noqa: E402
-    MedianFilter, PostureAngles, clamp_angles, extract_angles, smooth,
+    MedianFilter, clamp_angles, extract_angles, smooth,
 )
 from src.posture.pose_buffer import PoseBuffer  # noqa: E402
 from src.posture.classifier import classify  # noqa: E402
@@ -60,14 +60,12 @@ def load_posture_config(path=POSTURE_CONFIG):
 class ControlLoop(threading.Thread):
     """고정 주기로 중립 또는 고정 개입 포즈를 모터에 쓰는 스레드."""
 
-    def __init__(self, buffer, mapper, writer, config, safety_gate=None,
-                 condition="posture_trigger"):
+    def __init__(self, buffer, mapper, writer, config, safety_gate=None):
         super().__init__(name="control", daemon=True)
         echo = config["echo"]
         motion = config["motion"]
         self.buffer = buffer
         self.mapper = mapper
-        self.condition = condition
         self.motion_enabled = True
         self.writer = writer
         self.period = 1.0 / echo["control_hz"]
@@ -460,8 +458,7 @@ def run(args):
             writer = build_writer((packet, port), mapper, config)
             check_pose_within_limits(writer, mapper)
 
-        control = ControlLoop(buffer, mapper, writer, config, safety_gate,
-                              condition=condition)
+        control = ControlLoop(buffer, mapper, writer, config, safety_gate)
         control.start()
 
         # 교정 판단 스레드 (--no-correction 이면 비활성)
@@ -613,7 +610,7 @@ def run(args):
                             behavior.rearm_after_skipped_event()
                         d = event.decision
                         action_name = action.behavior if action else "ignore"
-                        print(f"[자세반응] [{d.action}] {d.speech} "
+                        print(f"[자세반응] [{d.action}] "
                               f"(행동: {action_name}, 강도: {event.urgency})")
 
                 frames += 1

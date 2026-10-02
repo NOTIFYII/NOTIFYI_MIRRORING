@@ -24,8 +24,6 @@ class BehaviorDecision:
     """로컬 정책이 만든 결정. 모터 각도는 포함하지 않는다."""
 
     action: str
-    behavior: str
-    speech: str = ""
 
 
 @dataclass
@@ -35,7 +33,6 @@ class CorrectionEvent:
     decision: BehaviorDecision
     posture_label: str
     urgency: int
-    observed_angles: Optional[PostureAngles] = None
 
 
 class BehaviorManager(threading.Thread):
@@ -51,7 +48,7 @@ class BehaviorManager(threading.Thread):
         # 교정 이벤트 소비:
         event = manager.poll_event()
         if event:
-            print(event.decision.speech)
+            print(event.decision.action)
     """
 
     def __init__(self, config: dict, condition=None):
@@ -123,7 +120,7 @@ class BehaviorManager(threading.Thread):
                                   self._config):
                 return
             urgency = urgency_level(self._policy_state, self._config)
-        decision = self._fixed_decision(posture.label)
+        decision = self._fixed_decision()
 
         if decision.action == "ignore":
             self.rearm_after_skipped_event()
@@ -134,7 +131,6 @@ class BehaviorManager(threading.Thread):
             decision=decision,
             posture_label=posture.label,
             urgency=urgency,
-            observed_angles=angles,
         )
         self._events.put(event)
 
@@ -159,20 +155,10 @@ class BehaviorManager(threading.Thread):
                                     if posture is not None else "unknown")
 
     @staticmethod
-    def _fixed_decision(posture_label: str) -> BehaviorDecision:
-        """자세 라벨을 고정 개입 이벤트로 바꾼다.
+    def _fixed_decision() -> BehaviorDecision:
+        """트리거를 고정 개입 이벤트로 바꾼다.
 
         모터 동작은 BehaviorExecutor가 설정된 포즈로 변환한다. 이 단계에서
         모델이 각도나 새로운 행동을 만들어낼 수 없게 해 실험 반복성을 지킨다.
         """
-        behaviors = {
-            "lateral_tilt": "mimic_bad_posture",
-            "slouch": "mimic_slouch",
-            "forward_head": "mimic_forward_head",
-            "slouch_and_forward": "mimic_slouch",
-        }
-        return BehaviorDecision(
-            action="gentle_remind",
-            behavior=behaviors.get(posture_label, "neutral"),
-            speech="",
-        )
+        return BehaviorDecision(action="gentle_remind")

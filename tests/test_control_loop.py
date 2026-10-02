@@ -94,7 +94,6 @@ def test_posture_trigger_keeps_robot_neutral_without_event():
             },
         },
         safety_gate=FakeGate(),
-        condition="posture_trigger",
     )
     buffer.loop = loop
 
@@ -120,7 +119,6 @@ def test_posture_trigger_holds_rest_pose_without_event():
             },
         },
         safety_gate=FakeGate(),
-        condition="posture_trigger",
     )
     buffer.loop = loop
 
@@ -168,7 +166,6 @@ def test_posture_trigger_stays_neutral_after_behavior_release():
             },
         },
         safety_gate=FakeGate(),
-        condition="posture_trigger",
     )
     action = SimpleNamespace(
         pose=PostureAngles(1.0, 8.0, 2.0, 1.0),
@@ -209,7 +206,6 @@ def test_posture_trigger_holds_pose_until_good_posture():
             },
         },
         safety_gate=FakeGate(),
-        condition="posture_trigger",
     )
     action = SimpleNamespace(
         pose=PostureAngles(1.0, 30.0, 25.0, 1.0),

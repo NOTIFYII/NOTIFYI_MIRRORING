@@ -192,16 +192,13 @@ class FakeGate:
 
 
 class TestBehaviorExecutor:
-    def event(self, action="gentle_remind", behavior="mimic_slouch",
+    def event(self, action="gentle_remind",
               angles=None, posture_label="slouch"):
         decision = type("Decision", (), {
             "action": action,
-            "behavior": behavior,
-            "speech": "등을 펴보세요.",
         })()
         return type("Event", (), {
             "decision": decision,
-            "observed_angles": angles,
             "posture_label": posture_label,
         })()
 
@@ -229,7 +226,6 @@ class TestBehaviorExecutor:
         assert action.pose.torso_pitch_deg == 8.0
         assert action.pose.neck_pitch_deg == 2.0
         assert action.pose.torso_pitch_deg != observed.torso_pitch_deg
-        assert action.speech == ""
 
     def test_posture_trigger_uses_one_generic_pose_for_lateral_bad_posture(self):
         executor = BehaviorExecutor({

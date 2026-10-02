@@ -30,13 +30,9 @@ class SafetyGate:
                 "(postic.safety.v1 필요)"
             )
         motion = safety.get("motion") or {}
-        legacy_motion = config.get("motion") or {}
         angles = config.get("angles") or {}
 
-        # safety.motion 이 없던 기존 설정도 그대로 동작하도록 이전 값을
-        # fallback 으로 사용한다. 새 설정에서는 safety 가 단일 정책 소스다.
-        max_step_deg = motion.get("max_step_deg",
-                                 legacy_motion.get("max_step_deg", 1.5))
+        max_step_deg = motion.get("max_step_deg", 1.5)
         self.max_step_deg = float(max_step_deg)
         if self.max_step_deg <= 0:
             raise SafetyViolation("max_step_deg 는 0 보다 커야 합니다")

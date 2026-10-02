@@ -57,12 +57,6 @@ def load_joints(path=JOINTS_CONFIG):
     return config.get("joints") or {}
 
 
-def configured_ids(config=None):
-    """버스에 물려 있는 전체 ID. 스캔 결과와 대조할 때 쓴다."""
-    config = config or load_robot_config()
-    return list((config.get("motors") or {}).get("ids") or [])
-
-
 def active_ids(config=None):
     """실제로 구조에 연결되어 움직이는 축만. 없으면 전체로 떨어진다.
 

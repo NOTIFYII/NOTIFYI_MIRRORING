@@ -18,7 +18,6 @@ class BehaviorAction:
     behavior: str
     pose: Optional[PostureAngles]
     duration_sec: float
-    speech: str
     hold_until_good: bool = False
 
 
@@ -101,5 +100,4 @@ class BehaviorExecutor:
             pose=self.safety_gate.clamp_pose(pose),
             duration_sec=self.safety_gate.clamp_duration(self.duration_sec),
             hold_until_good=True,
-            speech="",
         )

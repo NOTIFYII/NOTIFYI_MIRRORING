@@ -27,8 +27,8 @@ joints:
     zero_position: 1034
     min_position: 0
     max_position: 4095
-    relative_min_deg: -60
-    relative_max_deg: 60
+    relative_min_deg: -45
+    relative_max_deg: 45
     wrap_position: true
 
   waist_lower_pitch:
@@ -51,8 +51,8 @@ joints:
     zero_position: 2040
     min_position: 0
     max_position: 4095
-    relative_min_deg: -60
-    relative_max_deg: 60
+    relative_min_deg: -45
+    relative_max_deg: 45
     wrap_position: true
 
   waist_upper_pitch:

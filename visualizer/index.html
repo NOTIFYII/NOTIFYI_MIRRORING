@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Notifyi / Joint Studio</title>
+  <title>Notifyi / Workbench Twin</title>
   <style>
     :root {
       color-scheme: dark;
@@ -63,6 +63,12 @@
     input[type=range] { accent-color: var(--accent); width: 100%; margin: 9px 0 1px; }
     input[type=range]:disabled { opacity: .4; }
     .small { font-size: 11px; color: var(--muted); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .connection-list { display: grid; gap: 5px; margin-top: 8px; }
+    .connection-row { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 7px 8px; border-left: 2px solid var(--cyan); background: rgba(114,216,255,.06);
+      color: var(--text); font-size: 11px; }
+    .connection-row button { padding: 3px 6px; color: var(--danger); }
     #viewport { position: relative; min-width: 0; }
     #viewport canvas { display: block; width: 100%; height: 100%; }
     .hud {
@@ -86,9 +92,9 @@
 <body>
   <div id="app">
     <aside>
-      <div class="eyebrow">Notifyi / Joint Studio</div>
-      <h1>6축 포즈 시각화</h1>
-      <p>실제 모터 위치를 읽거나, 샘플 포즈를 조정해 축 방향을 확인합니다.</p>
+      <div class="eyebrow">Notifyi / Workbench Twin</div>
+      <h1>업무환경 디지털 트윈</h1>
+      <p>모터·브라켓·커넥터·OpenCR·노트북이 연결된 실제 작업 환경을 확인합니다.</p>
 
       <div class="status"><span id="status-dot" class="dot"></span>
         <span id="status-text">샘플 모드</span></div>
@@ -100,6 +106,12 @@
       </div>
       <p id="source-note" class="small">실시간 모드는 Python 서버가 <code>/api/state</code>를 제공할 때 사용합니다. 브라우저에서는 모터 명령을 보내지 않습니다.</p>
 
+      <h2>카메라 뷰</h2>
+      <div class="button-row">
+        <button id="environment-button" class="active">업무환경 전체</button>
+        <button id="robot-button">로봇 중심</button>
+      </div>
+
       <h2>포즈</h2>
       <div class="button-row">
         <button id="reset-button">zero로 복귀</button>
@@ -110,14 +122,22 @@
 
       <h2>관절 조정</h2>
       <div id="motor-controls"></div>
+
+      <h2>배선 설계</h2>
+      <p id="connection-status" class="small" aria-live="polite">단자를 클릭한 뒤 연결할 단자를 클릭하세요.</p>
+      <p class="small">TTL 핀 순서: 1 GND · 2 VDD · 3 DATA</p>
+      <div class="button-row">
+        <button id="clear-connections" class="warn">배선 초기화</button>
+      </div>
+      <div id="connection-list" class="connection-list" aria-live="polite"></div>
     </aside>
 
     <main id="viewport">
       <div class="hud">
         <div class="hud-card" id="hint">드래그: 회전 · 휠: 줌 · 우클릭 드래그: 이동</div>
-        <div class="hud-card" id="sample-label">READ-ONLY VISUALIZER</div>
+        <div class="hud-card" id="sample-label">NOTIFYI / WORKBENCH TWIN</div>
       </div>
-      <div class="legend">검정: 모터 하우징 · 주황: 관절 디스크 · 청록: 축 방향</div>
+      <div class="legend">검정: Dynamixel · 주황: 관절/브라켓 · 초록: OpenCR · 청록: 신호 케이블</div>
     </main>
   </div>
 
@@ -150,29 +170,49 @@
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0d1015);
-    scene.fog = new THREE.Fog(0x0d1015, 7, 16);
-    const camera = new THREE.PerspectiveCamera(34, 1, .1, 100);
-    camera.position.set(4.1, 3.5, 6.7);
+    // 먼 거리에서 장면이 안개 속으로 사라지지 않도록 충분히 멀리 둔다.
+    scene.fog = new THREE.Fog(0x0d1015, 28, 80);
+    const camera = new THREE.PerspectiveCamera(34, 1, .05, 200);
+    camera.position.set(9.4, 7.2, 11.5);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     document.querySelector('#viewport').appendChild(renderer.domElement);
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 2.8, 0);
+    controls.target.set(0, 2.0, 0);
     controls.enableDamping = true;
+    controls.minDistance = 3.2;
+    controls.maxDistance = 36;
 
     scene.add(new THREE.HemisphereLight(0x9ab7d6, 0x151820, 2.2));
     const key = new THREE.DirectionalLight(0xffffff, 3.2);
     key.position.set(4, 8, 5); key.castShadow = true; scene.add(key);
     const fill = new THREE.PointLight(0x6ccfff, 8, 10); fill.position.set(-3, 4, 3); scene.add(fill);
-    const grid = new THREE.GridHelper(12, 24, 0x293443, 0x18202b);
-    grid.position.y = -.02; scene.add(grid);
+    const workspace = new THREE.Group();
+    scene.add(workspace);
+    const environment = new THREE.Group();
+    workspace.add(environment);
+    const grid = new THREE.GridHelper(18, 36, 0x293443, 0x18202b);
+    grid.position.y = -1.62; workspace.add(grid);
 
     const robot = new THREE.Group();
-    robot.position.y = .08;
-    scene.add(robot);
+    robot.position.set(-1.75, 1.25, -.55);
+    workspace.add(robot);
+    const controller = new THREE.Group();
+    controller.position.set(.15, 1.38, -.9);
+    workspace.add(controller);
+    const cableGroup = new THREE.Group();
+    workspace.add(cableGroup);
+    let controllerCableAnchor = null;
     const pivotById = new Map();
     const labelById = new Map();
+    const connectorById = new Map();
+    const cableById = new Map();
+    const endpointById = new Map();
+    const endpointPickables = [];
+    const connections = [];
+    let selectedEndpointId = null;
+    let nextConnectionId = 1;
     let axesVisible = true;
 
     function material(color, roughness = .62) {
@@ -181,6 +221,16 @@
     function box(parent, size, y, color = 0x242a32) {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material(color));
       mesh.position.y = y; mesh.castShadow = true; mesh.receiveShadow = true;
+      parent.add(mesh); return mesh;
+    }
+    function boxAt(parent, size, position, color = 0x242a32, roughness = .62) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material(color, roughness));
+      mesh.position.copy(position); mesh.castShadow = true; mesh.receiveShadow = true;
+      parent.add(mesh); return mesh;
+    }
+    function cylinderAt(parent, radius, depth, position, color, radialSegments = 16) {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, depth, radialSegments), material(color));
+      mesh.position.copy(position); mesh.castShadow = true; mesh.receiveShadow = true;
       parent.add(mesh); return mesh;
     }
     function labelSprite(text) {
@@ -193,23 +243,191 @@
       }));
       sprite.scale.set(1.25, .31, 1); sprite.position.set(.72, .13, .05); return sprite;
     }
+    function setEndpointHighlight(endpoint, active) {
+      endpoint.pickables.forEach(mesh => {
+        mesh.material.color.set(active ? 0x72d8ff : endpoint.color);
+        mesh.material.emissive?.set(active ? 0x164d63 : 0x000000);
+        mesh.material.emissiveIntensity = active ? 1.5 : 0;
+      });
+    }
+    function createTerminal(parent, localPosition, id, label, type = 'TTL') {
+      const terminal = new THREE.Group(); terminal.position.copy(localPosition); parent.add(terminal);
+      const color = type === 'TTL' ? 0x26343a : 0x38434a;
+      const body = boxAt(terminal, [.24, .18, .3], new THREE.Vector3(0, 0, 0), color, .42);
+      body.userData.endpointId = id;
+      const pickables = [body];
+      [-.065, 0, .065].forEach((x, pin) => {
+        const contact = cylinderAt(terminal, .025, .035, new THREE.Vector3(x, .1, .17), pin === 1 ? 0xe4bc62 : 0xb8d3d6, 10);
+        contact.rotation.x = Math.PI / 2; contact.userData.endpointId = id; pickables.push(contact);
+      });
+      const tag = labelSprite(`${label} · ${type}`); tag.scale.set(.85, .22, 1); tag.position.set(.18, .16, .1); terminal.add(tag);
+      const endpoint = { id, label, type, node: terminal, anchor: new THREE.Vector3(0, 0, .22), color, pickables };
+      endpointById.set(id, endpoint); endpointPickables.push(...pickables);
+      return endpoint;
+    }
+    function endpointFromHit(hit) {
+      let object = hit.object;
+      while (object && !object.userData.endpointId) object = object.parent;
+      return object ? endpointById.get(object.userData.endpointId) : null;
+    }
+    function worldEndpointPosition(endpoint) {
+      const position = endpoint.anchor.clone(); endpoint.node.localToWorld(position); return position;
+    }
+    function connectionName(connection) {
+      return `${endpointById.get(connection.a).label} ⇄ ${endpointById.get(connection.b).label}`;
+    }
+    function renderConnectionList() {
+      const list = document.querySelector('#connection-list'); list.innerHTML = '';
+      connections.forEach(connection => {
+        const row = document.createElement('div'); row.className = 'connection-row';
+        row.innerHTML = `<span>${connectionName(connection)}</span><button type="button" aria-label="${connectionName(connection)} 연결 삭제">삭제</button>`;
+        row.querySelector('button').onclick = () => {
+          const index = connections.indexOf(connection); if (index < 0) return;
+          if (connection.mesh) { connection.mesh.geometry.dispose(); cableGroup.remove(connection.mesh); }
+          connections.splice(index, 1); updateCables(); renderConnectionList();
+        };
+        list.appendChild(row);
+      });
+    }
+    function connectEndpoints(a, b, silent = false) {
+      if (!a || !b || a.id === b.id) return;
+      const duplicate = connections.some(connection =>
+        (connection.a === a.id && connection.b === b.id) || (connection.a === b.id && connection.b === a.id));
+      if (duplicate) return;
+      const connection = { id: nextConnectionId++, a: a.id, b: b.id, mesh: null };
+      connections.push(connection); updateCables(); renderConnectionList();
+      if (!silent) document.querySelector('#connection-status').textContent = `${connectionName(connection)} 연결됨`;
+    }
+    function clearEndpointSelection() {
+      if (selectedEndpointId) setEndpointHighlight(endpointById.get(selectedEndpointId), false);
+      selectedEndpointId = null;
+    }
+    function selectEndpoint(endpoint) {
+      if (!endpoint) return;
+      if (!selectedEndpointId) {
+        selectedEndpointId = endpoint.id; setEndpointHighlight(endpoint, true);
+        document.querySelector('#connection-status').textContent = `${endpoint.label} 선택됨 · 연결할 단자를 클릭하세요.`;
+        return;
+      }
+      if (selectedEndpointId === endpoint.id) { clearEndpointSelection(); document.querySelector('#connection-status').textContent = '단자를 클릭한 뒤 연결할 단자를 클릭하세요.'; return; }
+      const first = endpointById.get(selectedEndpointId); connectEndpoints(first, endpoint); clearEndpointSelection();
+    }
+    function createWorkbench() {
+      const desk = new THREE.Group(); environment.add(desk);
+      boxAt(desk, [8.2, .28, 4.7], new THREE.Vector3(0, 1.0, 0), 0x3b2d27, .72);
+      boxAt(desk, [8.25, .08, 4.75], new THREE.Vector3(0, 1.17, 0), 0x8a5b3a, .6);
+      [-3.45, 3.45].forEach(x => {
+        [-1.75, 1.75].forEach(z => boxAt(desk, [.3, 2.65, .3], new THREE.Vector3(x, -.32, z), 0x252a31));
+      });
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(24, 18), material(0x151b22, .9));
+      floor.rotation.x = -Math.PI / 2; floor.position.y = -1.66; floor.receiveShadow = true; environment.add(floor);
+      const backWall = new THREE.Mesh(new THREE.PlaneGeometry(24, 12), material(0x171d25, .95));
+      backWall.position.set(0, 4.1, -2.7); backWall.receiveShadow = true; environment.add(backWall);
+      boxAt(desk, [8.4, .08, .08], new THREE.Vector3(0, 1.22, -2.33), 0xb4774d, .6);
+      const mat = new THREE.MeshStandardMaterial({ color: 0x252c35, roughness: .5, metalness: .1, transparent: true, opacity: .72 });
+      const deskPad = new THREE.Mesh(new THREE.BoxGeometry(6.8, .025, 2.2), mat);
+      deskPad.position.set(.2, 1.165, .05); deskPad.receiveShadow = true; desk.add(deskPad);
+    }
+    function createLaptop() {
+      const laptop = new THREE.Group(); laptop.position.set(2.15, 1.28, .32); workspace.add(laptop);
+      boxAt(laptop, [2.55, .12, 1.72], new THREE.Vector3(0, 0, .15), 0x2a3038, .38);
+      boxAt(laptop, [2.25, .035, 1.38], new THREE.Vector3(0, .075, .14), 0x151a21, .42);
+      for (let row = 0; row < 4; row += 1) {
+        for (let col = 0; col < 10; col += 1) {
+          boxAt(laptop, [.15, .022, .11], new THREE.Vector3(-.84 + col * .19, .1, -.34 + row * .2), 0x5a6570, .5);
+        }
+      }
+      boxAt(laptop, [.42, .026, .17], new THREE.Vector3(0, .102, .45), 0x667480, .5);
+      const screen = new THREE.Group(); screen.position.set(0, .12, -.69); laptop.add(screen);
+      boxAt(screen, [2.55, 1.7, .13], new THREE.Vector3(0, .82, 0), 0x252c35, .42);
+      boxAt(screen, [2.25, 1.38, .025], new THREE.Vector3(0, .82, .08), 0x193746, .3);
+      boxAt(screen, [1.72, .035, .05], new THREE.Vector3(0, 1.25, .105), 0x72d8ff, .24);
+      boxAt(screen, [.95, .035, .05], new THREE.Vector3(0, 1.02, .105), 0x4f9bb2, .3);
+      const label = labelSprite('HOST / VISUALIZER'); label.scale.set(1.35, .34, 1); label.position.set(-.8, .92, .16); screen.add(label);
+    }
+    function createOpenCR() {
+      const board = new THREE.Group(); board.position.copy(controller.position); workspace.add(board);
+      boxAt(board, [1.72, .11, 1.04], new THREE.Vector3(0, 0, 0), 0x1a513f, .45);
+      boxAt(board, [1.45, .018, .78], new THREE.Vector3(0, .068, 0), 0x237255, .56);
+      for (let col = 0; col < 9; col += 1) {
+        for (let row = 0; row < 2; row += 1) cylinderAt(board, .026, .04, new THREE.Vector3(-.64 + col * .16, .1, -.32 + row * .64), 0xd6b66d, 10);
+      }
+      boxAt(board, [.28, .16, .22], new THREE.Vector3(-.52, .13, .02), 0x161d22, .35);
+      boxAt(board, [.22, .12, .34], new THREE.Vector3(.58, .11, -.3), 0x10161c, .4);
+      boxAt(board, [.32, .14, .12], new THREE.Vector3(.6, .13, .3), 0xd5e3dc, .35);
+      const led = new THREE.Mesh(new THREE.SphereGeometry(.055, 12, 8), new THREE.MeshStandardMaterial({ color: 0x72ffb0, emissive: 0x1d9f63, emissiveIntensity: 2 }));
+      led.position.set(.28, .17, .04); board.add(led);
+      const label = labelSprite('OPENCR · CONTROLLER'); label.scale.set(1.5, .38, 1); label.position.set(.25, .24, .12); board.add(label);
+      controllerCableAnchor = new THREE.Object3D(); controllerCableAnchor.position.set(0, .08, .5); board.add(controllerCableAnchor);
+      [-.55, 0, .55].forEach((x, index) => {
+        createTerminal(board, new THREE.Vector3(x, .17, .56), `opencr-ttl-${index + 1}`, `OpenCR TTL${index + 1}`);
+      });
+    }
     function addJoint(parent, spec, index) {
       const pivot = new THREE.Group(); pivot.position.y = .76; parent.add(pivot);
-      const disk = new THREE.Mesh(new THREE.CylinderGeometry(.27, .27, .12, 24), material(0xd88731, .42));
+      const disk = new THREE.Mesh(new THREE.CylinderGeometry(.31, .31, .14, 24), material(0xd88731, .42));
       disk.rotation.x = Math.PI / 2; disk.castShadow = true; pivot.add(disk);
       const axes = new THREE.AxesHelper(.48); axes.visible = axesVisible; pivot.add(axes);
       const label = labelSprite(`ID ${spec.id} · ${spec.axis}`); pivot.add(label);
       const next = new THREE.Group(); next.position.y = .76; pivot.add(next);
-      box(next, [.92, 1.18, .76], .0, index % 2 ? 0x1f252e : 0x252c35);
+      box(next, [1.08, 1.2, .86], .0, index % 2 ? 0x1d252d : 0x262e38);
+      boxAt(next, [.86, .035, .63], new THREE.Vector3(0, 0, .45), 0x11171e, .45);
+      [-.36, .36].forEach(x => [-.42, .42].forEach(y => {
+        const screw = cylinderAt(next, .055, .035, new THREE.Vector3(x, y, .48), 0xb4c2c8, 12);
+        screw.rotation.x = Math.PI / 2;
+      }));
+      const led = new THREE.Mesh(new THREE.SphereGeometry(.045, 12, 8), new THREE.MeshStandardMaterial({
+        color: 0x7fffc0, emissive: 0x14784e, emissiveIntensity: 1.8,
+      }));
+      led.position.set(.36, .44, .49); next.add(led);
+      const port = boxAt(next, [.16, .18, .22], new THREE.Vector3(.58, -.22, .3), 0x090d12, .35);
+      boxAt(port, [.07, .08, .14], new THREE.Vector3(0, 0, .13), 0x65d3de, .3);
+      connectorById.set(spec.id, { node: next, local: new THREE.Vector3(.58, -.22, .42) });
+      createTerminal(next, new THREE.Vector3(.62, .18, .4), `motor-${spec.id}-a`, `ID ${spec.id} A`);
+      createTerminal(next, new THREE.Vector3(-.62, .18, .4), `motor-${spec.id}-b`, `ID ${spec.id} B`);
       pivotById.set(spec.id, pivot); labelById.set(spec.id, label);
       return next;
     }
-    // Photo-inspired modular vertical column: rectangular motor housings separated by orange joints.
+    // 실제 작업대 위의 모터 컬럼과 주변 장치를 함께 배치한다.
+    createWorkbench();
+    createLaptop();
+    createOpenCR();
     let parent = robot;
-    box(parent, [1.04, .35, .9], .18, 0x171c23);
+    box(parent, [1.34, .22, 1.08], .12, 0x171c23);
+    boxAt(parent, [1.08, .06, .86], new THREE.Vector3(0, .25, 0), 0xd88731, .42);
     MOTOR_SPECS.forEach((spec, index) => { parent = addJoint(parent, spec, index); });
-    const top = new THREE.Mesh(new THREE.SphereGeometry(.17, 20, 12), material(0x72d8ff, .25));
-    top.position.y = .2; parent.add(top);
+    const top = new THREE.Mesh(new THREE.SphereGeometry(.2, 20, 12), material(0x72d8ff, .25));
+    top.position.y = .22; parent.add(top);
+
+    function updateCables() {
+      connections.forEach(connection => {
+        const a = endpointById.get(connection.a); const b = endpointById.get(connection.b);
+        if (!a || !b) return;
+        const start = worldEndpointPosition(a); const end = worldEndpointPosition(b);
+        const span = end.clone().sub(start);
+        const curve = new THREE.CatmullRomCurve3([
+          start,
+          start.clone().add(new THREE.Vector3(0, .22, .08)),
+          start.clone().add(span.multiplyScalar(.52)).add(new THREE.Vector3(0, .3, 0)),
+          end.clone().add(new THREE.Vector3(0, .22, .08)),
+          end,
+        ]);
+        if (connection.mesh) {
+          connection.mesh.geometry.dispose();
+          connection.mesh.geometry = new THREE.TubeGeometry(curve, 24, .032, 8, false);
+        } else {
+          connection.mesh = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, .032, 8, false), material(0x4bc9d6, .42));
+          connection.mesh.castShadow = true; cableGroup.add(connection.mesh);
+        }
+      });
+    }
+    connectEndpoints(endpointById.get('opencr-ttl-1'), endpointById.get('motor-2-a'), true);
+    connectEndpoints(endpointById.get('motor-2-b'), endpointById.get('motor-3-a'), true);
+    connectEndpoints(endpointById.get('motor-3-b'), endpointById.get('motor-4-a'), true);
+    connectEndpoints(endpointById.get('motor-4-b'), endpointById.get('motor-5-a'), true);
+    connectEndpoints(endpointById.get('motor-5-b'), endpointById.get('motor-6-a'), true);
+    connectEndpoints(endpointById.get('motor-6-b'), endpointById.get('motor-7-a'), true);
+    updateCables(); renderConnectionList();
 
     function signedDelta(current, zero) {
       return ((current - zero + 2048) % 4096) - 2048;
@@ -236,6 +454,7 @@
           row.querySelector('.deg').textContent = `${state.pose[spec.id].toFixed(1)}°`;
         }
       });
+      updateCables();
     }
     function setMockPose(id, degrees) {
       state.positions[id] = (state.zero[id] + degrees * TICKS_PER_DEG + 4096) % 4096;
@@ -256,6 +475,19 @@
       });
     }
     buildControls(); redraw();
+
+    function setView(view) {
+      const presets = {
+        environment: { position: [17, 12, 22], target: [0, 4.2, 0] },
+        robot: { position: [5.1, 4.1, 6.5], target: [-1.15, 3.2, -.45] },
+      };
+      const preset = presets[view]; if (!preset) return;
+      camera.position.set(...preset.position);
+      controls.target.set(...preset.target);
+      controls.update();
+      document.querySelector('#environment-button').classList.toggle('active', view === 'environment');
+      document.querySelector('#robot-button').classList.toggle('active', view === 'robot');
+    }
 
     function setMode(mode) {
       state.mode = mode;
@@ -303,13 +535,33 @@
       axesVisible = !axesVisible; event.currentTarget.classList.toggle('active', axesVisible);
       pivotById.forEach(pivot => { if (pivot.children[1]) pivot.children[1].visible = axesVisible; });
     };
+    document.querySelector('#clear-connections').onclick = () => {
+      connections.splice(0).forEach(connection => {
+        if (connection.mesh) { connection.mesh.geometry.dispose(); cableGroup.remove(connection.mesh); }
+      });
+      clearEndpointSelection(); renderConnectionList();
+      document.querySelector('#connection-status').textContent = '배선을 초기화했습니다. 단자를 클릭해 새 연결을 만드세요.';
+    };
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    renderer.domElement.addEventListener('pointerdown', event => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObjects(endpointPickables, false)[0];
+      if (hit) { selectEndpoint(endpointFromHit(hit)); controls.enabled = false; }
+    });
+    renderer.domElement.addEventListener('pointerup', () => { controls.enabled = true; });
+    document.querySelector('#environment-button').onclick = () => setView('environment');
+    document.querySelector('#robot-button').onclick = () => setView('robot');
 
     function resize() {
       const el = document.querySelector('#viewport');
       const width = el.clientWidth, height = el.clientHeight;
       camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false);
     }
-    addEventListener('resize', resize); resize();
+    addEventListener('resize', resize); resize(); setView('environment');
     function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
     animate();
   </script>

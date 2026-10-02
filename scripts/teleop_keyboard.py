@@ -94,6 +94,12 @@ def normalize_ticks(ticks, wrap=False):
     return ticks % TICKS_PER_REV if wrap else ticks
 
 
+def shortest_delta(current, target):
+    """원형 위치에서 current에서 target까지의 최단 tick 차이."""
+    return ((target - current + TICKS_PER_REV / 2)
+            % TICKS_PER_REV - TICKS_PER_REV / 2)
+
+
 def getch_nonblocking(timeout):
     if select.select([sys.stdin], [], [], timeout)[0]:
         return sys.stdin.read(1)
@@ -362,15 +368,33 @@ def main():
                     if key == " ":
                         target = origins[active]
                     elif key in ("w", "s"):
-                        target = positions[active] + (step if key == "w" else -step)
+                        delta = step if key == "w" else -step
+                        target = positions[active] + delta
                     else:
                         continue
 
-                    low, high = limits[active]
-                    clamped = max(low, min(high, target))
-                    if clamped != target:
-                        print(f"\rID {active} 한계 도달 ({low}~{high}). "
-                              f"--max-travel-deg 를 늘리세요\r")
+                    if wraps.get(active, False):
+                        target = normalize_ticks(target, True)
+                        clamped = target
+                        if not args.no_travel_limit:
+                            travel_limit = degrees_to_ticks(args.max_travel_deg)
+                            delta_from_origin = shortest_delta(
+                                origins[active], target)
+                            if abs(delta_from_origin) > travel_limit:
+                                direction = 1 if delta_from_origin > 0 else -1
+                                clamped = normalize_ticks(
+                                    origins[active] + direction * travel_limit,
+                                    True)
+                                print(
+                                    f"\rID {active} 이동 한계 도달 "
+                                    f"(시작 위치 기준 ±{args.max_travel_deg:.1f}도). "
+                                    "--max-travel-deg 를 늘리세요\r")
+                    else:
+                        low, high = limits[active]
+                        clamped = max(low, min(high, target))
+                        if clamped != target:
+                            print(f"\rID {active} 한계 도달 ({low}~{high}). "
+                                  f"--max-travel-deg 를 늘리세요\r")
                     positions[active] = clamped
                     write4(packet, port, active, ADDR_GOAL_POSITION, clamped,
                            f"ID {active} 목표 위치")

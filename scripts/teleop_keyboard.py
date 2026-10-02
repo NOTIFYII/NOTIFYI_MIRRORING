@@ -94,12 +94,6 @@ def normalize_ticks(ticks, wrap=False):
     return ticks % TICKS_PER_REV if wrap else ticks
 
 
-def shortest_delta(current, target):
-    """원형 위치에서 current에서 target까지의 최단 tick 차이."""
-    return ((target - current + TICKS_PER_REV / 2)
-            % TICKS_PER_REV - TICKS_PER_REV / 2)
-
-
 def getch_nonblocking(timeout):
     if select.select([sys.stdin], [], [], timeout)[0]:
         return sys.stdin.read(1)
@@ -373,28 +367,16 @@ def main():
                     else:
                         continue
 
-                    if wraps.get(active, False):
-                        target = normalize_ticks(target, True)
-                        clamped = target
-                        if not args.no_travel_limit:
-                            travel_limit = degrees_to_ticks(args.max_travel_deg)
-                            delta_from_origin = shortest_delta(
-                                origins[active], target)
-                            if abs(delta_from_origin) > travel_limit:
-                                direction = 1 if delta_from_origin > 0 else -1
-                                clamped = normalize_ticks(
-                                    origins[active] + direction * travel_limit,
-                                    True)
-                                print(
-                                    f"\rID {active} 이동 한계 도달 "
-                                    f"(시작 위치 기준 ±{args.max_travel_deg:.1f}도). "
-                                    "--max-travel-deg 를 늘리세요\r")
-                    else:
-                        low, high = limits[active]
-                        clamped = max(low, min(high, target))
-                        if clamped != target:
-                            print(f"\rID {active} 한계 도달 ({low}~{high}). "
-                                  f"--max-travel-deg 를 늘리세요\r")
+                    # 위치제어 모터에서는 엔코더 0 경계를 넘는 목표를
+                    # circular shortest-path으로 바꾸지 않는다. DYNAMIXEL의
+                    # 단일 회전 위치제어가 7 -> 4093을 거의 한 바퀴 이동으로
+                    # 해석할 수 있어, wrap 관절도 이번 텔레옵에서는 한 회전
+                    # 내부의 선형 범위만 허용한다.
+                    low, high = limits[active]
+                    clamped = max(low, min(high, target))
+                    if clamped != target:
+                        print(f"\rID {active} 한계 도달 ({low}~{high}). "
+                              f"--max-travel-deg 를 늘리세요\r")
                     positions[active] = clamped
                     write4(packet, port, active, ADDR_GOAL_POSITION, clamped,
                            f"ID {active} 목표 위치")

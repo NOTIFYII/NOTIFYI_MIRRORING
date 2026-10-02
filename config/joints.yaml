@@ -24,7 +24,7 @@ joints:
     group: torso
     input_axis: torso_yaw
     direction: 1              # 실제 좌우 방향 테스트 후 -1/1 확정
-    zero_position: 1042
+    zero_position: 1034
     min_position: 0
     max_position: 4095
     relative_min_deg: -12
@@ -36,7 +36,7 @@ joints:
     group: torso
     input_axis: torso_pitch
     direction: 1              # 실제 앞/뒤 방향 테스트 후 -1/1 확정
-    zero_position: 3042
+    zero_position: 3059
     min_position: 0
     max_position: 4095
     relative_min_deg: -12
@@ -48,7 +48,7 @@ joints:
     group: torso
     input_axis: torso_yaw
     direction: 1
-    zero_position: 2060
+    zero_position: 2040
     min_position: 0
     max_position: 4095
     relative_min_deg: -12
@@ -60,7 +60,8 @@ joints:
     group: torso
     input_axis: torso_pitch
     direction: 1
-    zero_position: 59
+    # 스캔값 4108은 4096 tick 기준으로 12로 정규화한다.
+    zero_position: 12
     min_position: 0
     max_position: 4095
     relative_min_deg: -12
@@ -73,7 +74,8 @@ joints:
     role: neck
     input_axis: neck_roll
     direction: 1
-    zero_position: 4087
+    # 스캔값 4134는 4096 tick 기준으로 38로 정규화한다.
+    zero_position: 38
     min_position: 0
     max_position: 4095
     relative_min_deg: -12

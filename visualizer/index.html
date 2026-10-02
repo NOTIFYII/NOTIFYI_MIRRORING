@@ -98,7 +98,7 @@
         <button id="mock-button" class="active">샘플</button>
         <button id="live-button">실시간 읽기</button>
       </div>
-      <p class="small">실시간 모드는 Python 서버가 <code>/api/state</code>를 제공할 때 사용합니다. 브라우저에서는 모터 명령을 보내지 않습니다.</p>
+      <p id="source-note" class="small">실시간 모드는 Python 서버가 <code>/api/state</code>를 제공할 때 사용합니다. 브라우저에서는 모터 명령을 보내지 않습니다.</p>
 
       <h2>포즈</h2>
       <div class="button-row">
@@ -139,6 +139,14 @@
       zero: Object.fromEntries(MOTOR_SPECS.map(m => [m.id, m.zero])),
       pose: Object.fromEntries(MOTOR_SPECS.map(m => [m.id, 0])),
     };
+    const isGitHubPages = location.hostname.endsWith('.github.io');
+    if (isGitHubPages) {
+      const liveButton = document.querySelector('#live-button');
+      liveButton.disabled = true;
+      liveButton.textContent = '실시간 읽기 · 로컬 전용';
+      document.querySelector('#source-note').textContent =
+        '배포 페이지는 샘플 모드 전용입니다. 실제 모터 위치는 노트북에서 Python 서버를 실행해 로컬 주소로 확인하세요.';
+    }
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0d1015);
@@ -280,7 +288,9 @@
     }
     setInterval(pollLive, 250);
     document.querySelector('#mock-button').onclick = () => setMode('mock');
-    document.querySelector('#live-button').onclick = () => setMode('live');
+    document.querySelector('#live-button').onclick = () => {
+      if (!isGitHubPages) setMode('live');
+    };
     document.querySelector('#reset-button').onclick = () => {
       MOTOR_SPECS.forEach(spec => { state.positions[spec.id] = state.zero[spec.id]; }); redraw();
     };

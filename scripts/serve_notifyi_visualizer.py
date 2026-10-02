@@ -24,12 +24,21 @@ from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.robot.dynamixel_driver import load_joints, load_robot_config, open_bus
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 VISUALIZER_ROOT = PROJECT_ROOT / "visualizer"
 PRESENT_POSITION = 132
 TICKS_PER_REV = 4096
+
+# 샘플 모드는 Python 표준 라이브러리만으로 실행할 수 있어야 한다.
+# 하드웨어 모드에서만 config/joints.yaml과 DYNAMIXEL SDK를 읽는다.
+SAMPLE_JOINTS = {
+    "waist_lower_yaw": {"id": 2, "input_axis": "torso_yaw", "zero_position": 1042},
+    "waist_lower_pitch": {"id": 3, "input_axis": "torso_pitch", "zero_position": 3042},
+    "waist_upper_yaw": {"id": 4, "input_axis": "torso_yaw", "zero_position": 2060},
+    "waist_upper_pitch": {"id": 5, "input_axis": "torso_pitch", "zero_position": 59},
+    "neck_roll": {"id": 6, "input_axis": "neck_roll", "zero_position": 4087},
+    "neck_yaw": {"id": 7, "input_axis": "neck_yaw", "zero_position": 3039},
+}
 
 
 class StateStore:
@@ -88,6 +97,8 @@ class HardwarePoller(threading.Thread):
 
     def run(self):
         try:
+            from src.robot.dynamixel_driver import open_bus
+
             with open_bus(self.config) as (packet, port):
                 while not self.stop_event.is_set():
                     positions = {}
@@ -138,8 +149,14 @@ def main():
                         help="OpenCR/DYNAMIXEL 현재 위치를 읽기 전용으로 연결")
     args = parser.parse_args()
 
-    joints = load_joints()
-    config = load_robot_config()
+    if args.hardware:
+        from src.robot.dynamixel_driver import load_joints, load_robot_config
+
+        joints = load_joints()
+        config = load_robot_config()
+    else:
+        joints = SAMPLE_JOINTS
+        config = None
     store = StateStore(joints)
     if args.hardware:
         HardwarePoller(store, config).start()

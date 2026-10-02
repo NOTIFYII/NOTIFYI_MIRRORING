@@ -94,7 +94,7 @@
     <aside>
       <div class="eyebrow">Notifyi / Workbench Twin</div>
       <h1>업무환경 디지털 트윈</h1>
-      <p>모터·브라켓·커넥터·OpenCR·노트북이 연결된 실제 작업 환경을 확인합니다.</p>
+      <p>2XL430 모터·브라켓·TTL 케이블 중심으로 실제 조립 방향을 확인합니다.</p>
 
       <div class="status"><span id="status-dot" class="dot"></span>
         <span id="status-text">샘플 모드</span></div>
@@ -104,12 +104,12 @@
         <button id="mock-button" class="active">샘플</button>
         <button id="live-button">실시간 읽기</button>
       </div>
-      <p id="source-note" class="small">실시간 모드는 Python 서버가 <code>/api/state</code>를 제공할 때 사용합니다. 브라우저에서는 모터 명령을 보내지 않습니다.</p>
+      <p id="source-note" class="small">모터 배치 방향은 <code>visualizer/layout.js</code>의 rotation과 position으로 바꿀 수 있습니다.</p>
 
       <h2>카메라 뷰</h2>
       <div class="button-row">
-        <button id="environment-button" class="active">업무환경 전체</button>
-        <button id="robot-button">로봇 중심</button>
+        <button id="environment-button">업무환경 전체</button>
+        <button id="robot-button" class="active">로봇 중심</button>
       </div>
 
       <h2>포즈</h2>
@@ -137,21 +137,23 @@
         <div class="hud-card" id="hint">드래그: 회전 · 휠: 줌 · 우클릭 드래그: 이동</div>
         <div class="hud-card" id="sample-label">NOTIFYI / WORKBENCH TWIN</div>
       </div>
-      <div class="legend">검정: Dynamixel · 주황: 관절/브라켓 · 초록: OpenCR · 청록: 신호 케이블</div>
+      <div class="legend">검정: 2XL430 · 주황: 브라켓/출력 허브 · 초록: OpenCR · 청록: TTL 케이블</div>
     </main>
   </div>
 
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+    import { MOTOR_LAYOUT, MODEL_REFERENCE } from './layout.js';
 
     const MOTOR_SPECS = [
-      { id: 2, name: 'waist_lower_yaw', label: '허리 아래 좌우', axis: 'yaw', zero: 1042 },
-      { id: 3, name: 'waist_lower_pitch', label: '허리 아래 상하', axis: 'pitch', zero: 3042 },
-      { id: 4, name: 'waist_upper_yaw', label: '허리 위 좌우', axis: 'yaw', zero: 2060 },
-      { id: 5, name: 'waist_upper_pitch', label: '허리 위 상하', axis: 'pitch', zero: 59 },
-      { id: 6, name: 'neck_roll', label: '목 아래 갸우뚱', axis: 'roll', zero: 4087 },
-      { id: 7, name: 'neck_yaw', label: '목 좌우', axis: 'yaw', zero: 3039 },
+      { id: 2, name: 'waist_lower_yaw', label: '허리 아래 좌우', axis: 'yaw', zero: 1042, layout: MOTOR_LAYOUT[2] },
+      { id: 3, name: 'waist_lower_pitch', label: '허리 아래 상하', axis: 'pitch', zero: 3042, layout: MOTOR_LAYOUT[3] },
+      { id: 4, name: 'waist_upper_yaw', label: '허리 위 좌우', axis: 'yaw', zero: 2060, layout: MOTOR_LAYOUT[4] },
+      { id: 5, name: 'waist_upper_pitch', label: '허리 위 상하', axis: 'pitch', zero: 59, layout: MOTOR_LAYOUT[5] },
+      { id: 6, name: 'neck_roll', label: '목 아래 갸우뚱', axis: 'roll', zero: 4087, layout: MOTOR_LAYOUT[6] },
+      { id: 7, name: 'neck_yaw', label: '목 좌우', axis: 'yaw', zero: 3039, layout: MOTOR_LAYOUT[7] },
     ];
     const TICKS_PER_DEG = 4096 / 360;
     const state = {
@@ -171,15 +173,15 @@
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0d1015);
     // 먼 거리에서 장면이 안개 속으로 사라지지 않도록 충분히 멀리 둔다.
-    scene.fog = new THREE.Fog(0x0d1015, 28, 80);
+    scene.fog = new THREE.Fog(0x0d1015, 22, 65);
     const camera = new THREE.PerspectiveCamera(34, 1, .05, 200);
-    camera.position.set(9.4, 7.2, 11.5);
+    camera.position.set(8.5, 5.8, 10.5);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     document.querySelector('#viewport').appendChild(renderer.domElement);
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 2.0, 0);
+    controls.target.set(0, 2.6, 0);
     controls.enableDamping = true;
     controls.minDistance = 3.2;
     controls.maxDistance = 36;
@@ -190,24 +192,19 @@
     const fill = new THREE.PointLight(0x6ccfff, 8, 10); fill.position.set(-3, 4, 3); scene.add(fill);
     const workspace = new THREE.Group();
     scene.add(workspace);
-    const environment = new THREE.Group();
-    workspace.add(environment);
-    const grid = new THREE.GridHelper(18, 36, 0x293443, 0x18202b);
-    grid.position.y = -1.62; workspace.add(grid);
+    const grid = new THREE.GridHelper(14, 28, 0x293443, 0x18202b);
+    grid.position.y = -.22; workspace.add(grid);
 
     const robot = new THREE.Group();
-    robot.position.set(-1.75, 1.25, -.55);
+    robot.position.set(-1.35, .15, 0);
     workspace.add(robot);
     const controller = new THREE.Group();
-    controller.position.set(.15, 1.38, -.9);
+    controller.position.set(.95, .28, .15);
     workspace.add(controller);
     const cableGroup = new THREE.Group();
     workspace.add(cableGroup);
-    let controllerCableAnchor = null;
     const pivotById = new Map();
     const labelById = new Map();
-    const connectorById = new Map();
-    const cableById = new Map();
     const endpointById = new Map();
     const endpointPickables = [];
     const connections = [];
@@ -228,6 +225,11 @@
       mesh.position.copy(position); mesh.castShadow = true; mesh.receiveShadow = true;
       parent.add(mesh); return mesh;
     }
+    function roundedBoxAt(parent, size, position, color = 0x242a32, radius = .08, roughness = .62) {
+      const mesh = new THREE.Mesh(new RoundedBoxGeometry(...size, 3, radius), material(color, roughness));
+      mesh.position.copy(position); mesh.castShadow = true; mesh.receiveShadow = true;
+      parent.add(mesh); return mesh;
+    }
     function cylinderAt(parent, radius, depth, position, color, radialSegments = 16) {
       const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, depth, radialSegments), material(color));
       mesh.position.copy(position); mesh.castShadow = true; mesh.receiveShadow = true;
@@ -241,7 +243,7 @@
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
         map: new THREE.CanvasTexture(canvas), transparent: true, depthTest: false,
       }));
-      sprite.scale.set(1.25, .31, 1); sprite.position.set(.72, .13, .05); return sprite;
+      sprite.scale.set(.95, .24, 1); sprite.position.set(.72, .13, .05); return sprite;
     }
     function setEndpointHighlight(endpoint, active) {
       endpoint.pickables.forEach(mesh => {
@@ -260,7 +262,7 @@
         const contact = cylinderAt(terminal, .025, .035, new THREE.Vector3(x, .1, .17), pin === 1 ? 0xe4bc62 : 0xb8d3d6, 10);
         contact.rotation.x = Math.PI / 2; contact.userData.endpointId = id; pickables.push(contact);
       });
-      const tag = labelSprite(`${label} · ${type}`); tag.scale.set(.85, .22, 1); tag.position.set(.18, .16, .1); terminal.add(tag);
+      const tag = labelSprite(`${label} · ${type}`); tag.scale.set(.62, .16, 1); tag.position.set(.18, .16, .1); terminal.add(tag);
       const endpoint = { id, label, type, node: terminal, anchor: new THREE.Vector3(0, 0, .22), color, pickables };
       endpointById.set(id, endpoint); endpointPickables.push(...pickables);
       return endpoint;
@@ -312,39 +314,6 @@
       if (selectedEndpointId === endpoint.id) { clearEndpointSelection(); document.querySelector('#connection-status').textContent = '단자를 클릭한 뒤 연결할 단자를 클릭하세요.'; return; }
       const first = endpointById.get(selectedEndpointId); connectEndpoints(first, endpoint); clearEndpointSelection();
     }
-    function createWorkbench() {
-      const desk = new THREE.Group(); environment.add(desk);
-      boxAt(desk, [8.2, .28, 4.7], new THREE.Vector3(0, 1.0, 0), 0x3b2d27, .72);
-      boxAt(desk, [8.25, .08, 4.75], new THREE.Vector3(0, 1.17, 0), 0x8a5b3a, .6);
-      [-3.45, 3.45].forEach(x => {
-        [-1.75, 1.75].forEach(z => boxAt(desk, [.3, 2.65, .3], new THREE.Vector3(x, -.32, z), 0x252a31));
-      });
-      const floor = new THREE.Mesh(new THREE.PlaneGeometry(24, 18), material(0x151b22, .9));
-      floor.rotation.x = -Math.PI / 2; floor.position.y = -1.66; floor.receiveShadow = true; environment.add(floor);
-      const backWall = new THREE.Mesh(new THREE.PlaneGeometry(24, 12), material(0x171d25, .95));
-      backWall.position.set(0, 4.1, -2.7); backWall.receiveShadow = true; environment.add(backWall);
-      boxAt(desk, [8.4, .08, .08], new THREE.Vector3(0, 1.22, -2.33), 0xb4774d, .6);
-      const mat = new THREE.MeshStandardMaterial({ color: 0x252c35, roughness: .5, metalness: .1, transparent: true, opacity: .72 });
-      const deskPad = new THREE.Mesh(new THREE.BoxGeometry(6.8, .025, 2.2), mat);
-      deskPad.position.set(.2, 1.165, .05); deskPad.receiveShadow = true; desk.add(deskPad);
-    }
-    function createLaptop() {
-      const laptop = new THREE.Group(); laptop.position.set(2.15, 1.28, .32); workspace.add(laptop);
-      boxAt(laptop, [2.55, .12, 1.72], new THREE.Vector3(0, 0, .15), 0x2a3038, .38);
-      boxAt(laptop, [2.25, .035, 1.38], new THREE.Vector3(0, .075, .14), 0x151a21, .42);
-      for (let row = 0; row < 4; row += 1) {
-        for (let col = 0; col < 10; col += 1) {
-          boxAt(laptop, [.15, .022, .11], new THREE.Vector3(-.84 + col * .19, .1, -.34 + row * .2), 0x5a6570, .5);
-        }
-      }
-      boxAt(laptop, [.42, .026, .17], new THREE.Vector3(0, .102, .45), 0x667480, .5);
-      const screen = new THREE.Group(); screen.position.set(0, .12, -.69); laptop.add(screen);
-      boxAt(screen, [2.55, 1.7, .13], new THREE.Vector3(0, .82, 0), 0x252c35, .42);
-      boxAt(screen, [2.25, 1.38, .025], new THREE.Vector3(0, .82, .08), 0x193746, .3);
-      boxAt(screen, [1.72, .035, .05], new THREE.Vector3(0, 1.25, .105), 0x72d8ff, .24);
-      boxAt(screen, [.95, .035, .05], new THREE.Vector3(0, 1.02, .105), 0x4f9bb2, .3);
-      const label = labelSprite('HOST / VISUALIZER'); label.scale.set(1.35, .34, 1); label.position.set(-.8, .92, .16); screen.add(label);
-    }
     function createOpenCR() {
       const board = new THREE.Group(); board.position.copy(controller.position); workspace.add(board);
       boxAt(board, [1.72, .11, 1.04], new THREE.Vector3(0, 0, 0), 0x1a513f, .45);
@@ -357,44 +326,60 @@
       boxAt(board, [.32, .14, .12], new THREE.Vector3(.6, .13, .3), 0xd5e3dc, .35);
       const led = new THREE.Mesh(new THREE.SphereGeometry(.055, 12, 8), new THREE.MeshStandardMaterial({ color: 0x72ffb0, emissive: 0x1d9f63, emissiveIntensity: 2 }));
       led.position.set(.28, .17, .04); board.add(led);
-      const label = labelSprite('OPENCR · CONTROLLER'); label.scale.set(1.5, .38, 1); label.position.set(.25, .24, .12); board.add(label);
-      controllerCableAnchor = new THREE.Object3D(); controllerCableAnchor.position.set(0, .08, .5); board.add(controllerCableAnchor);
+      const label = labelSprite('OPENCR · CONTROLLER'); label.scale.set(1.05, .27, 1); label.position.set(.25, .24, .12); board.add(label);
       [-.55, 0, .55].forEach((x, index) => {
         createTerminal(board, new THREE.Vector3(x, .17, .56), `opencr-ttl-${index + 1}`, `OpenCR TTL${index + 1}`);
       });
     }
+    function addBracket(parent, index) {
+      const bracket = new THREE.Group(); parent.add(bracket);
+      const metal = index % 2 ? 0x9b6333 : 0xb4773d;
+      roundedBoxAt(bracket, [.11, 1.18, .92], new THREE.Vector3(-.58, 0, 0), metal, .025, .48);
+      roundedBoxAt(bracket, [.11, 1.18, .92], new THREE.Vector3(.58, 0, 0), metal, .025, .48);
+      boxAt(bracket, [1.18, .1, .94], new THREE.Vector3(0, -.54, 0), metal, .48);
+      [-.58, .58].forEach(x => [-.42, .42].forEach(y => cylinderAt(bracket, .052, .04, new THREE.Vector3(x, y, .48), 0xc7d0d2, 12)));
+      return bracket;
+    }
     function addJoint(parent, spec, index) {
-      const pivot = new THREE.Group(); pivot.position.y = .76; parent.add(pivot);
+      const layout = spec.layout || { position: [0, 0, 0], rotation: [0, 0, 0], orientation: 'custom' };
+      const pivot = new THREE.Group();
+      pivot.position.set(layout.position[0], .76 + layout.position[1], layout.position[2]);
+      pivot.userData.mountQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+        ...layout.rotation.map(value => THREE.MathUtils.degToRad(value))));
+      parent.add(pivot);
       const disk = new THREE.Mesh(new THREE.CylinderGeometry(.31, .31, .14, 24), material(0xd88731, .42));
       disk.rotation.x = Math.PI / 2; disk.castShadow = true; pivot.add(disk);
       const axes = new THREE.AxesHelper(.48); axes.visible = axesVisible; pivot.add(axes);
-      const label = labelSprite(`ID ${spec.id} · ${spec.axis}`); pivot.add(label);
+      const label = labelSprite(`ID ${spec.id} · 2XL430 · ${layout.orientation}`); pivot.add(label);
       const next = new THREE.Group(); next.position.y = .76; pivot.add(next);
-      box(next, [1.08, 1.2, .86], .0, index % 2 ? 0x1d252d : 0x262e38);
-      boxAt(next, [.86, .035, .63], new THREE.Vector3(0, 0, .45), 0x11171e, .45);
+      roundedBoxAt(next, [.78, .93, .78], new THREE.Vector3(0, 0, 0), index % 2 ? 0x202831 : 0x2a333c, .08, .42);
+      roundedBoxAt(next, [.68, .08, .68], new THREE.Vector3(0, .45, 0), 0x161c23, .025, .4);
+      roundedBoxAt(next, [.68, .08, .68], new THREE.Vector3(0, -.45, 0), 0x161c23, .025, .4);
+      boxAt(next, [.62, .035, .58], new THREE.Vector3(0, 0, .405), 0x10161c, .42);
       [-.36, .36].forEach(x => [-.42, .42].forEach(y => {
-        const screw = cylinderAt(next, .055, .035, new THREE.Vector3(x, y, .48), 0xb4c2c8, 12);
+        const screw = cylinderAt(next, .045, .035, new THREE.Vector3(x, y, .43), 0xb4c2c8, 12);
         screw.rotation.x = Math.PI / 2;
       }));
+      [-.45, .45].forEach(z => {
+        const hub = cylinderAt(next, .18, .09, new THREE.Vector3(0, 0, z), 0xc47a32, 24);
+        hub.rotation.x = Math.PI / 2;
+        cylinderAt(next, .06, .105, new THREE.Vector3(0, 0, z + (z > 0 ? .025 : -.025)), 0x161b21, 16).rotation.x = Math.PI / 2;
+      });
+      addBracket(next, index);
       const led = new THREE.Mesh(new THREE.SphereGeometry(.045, 12, 8), new THREE.MeshStandardMaterial({
         color: 0x7fffc0, emissive: 0x14784e, emissiveIntensity: 1.8,
       }));
-      led.position.set(.36, .44, .49); next.add(led);
-      const port = boxAt(next, [.16, .18, .22], new THREE.Vector3(.58, -.22, .3), 0x090d12, .35);
-      boxAt(port, [.07, .08, .14], new THREE.Vector3(0, 0, .13), 0x65d3de, .3);
-      connectorById.set(spec.id, { node: next, local: new THREE.Vector3(.58, -.22, .42) });
-      createTerminal(next, new THREE.Vector3(.62, .18, .4), `motor-${spec.id}-a`, `ID ${spec.id} A`);
-      createTerminal(next, new THREE.Vector3(-.62, .18, .4), `motor-${spec.id}-b`, `ID ${spec.id} B`);
+      led.position.set(.28, .32, .43); next.add(led);
+      createTerminal(next, new THREE.Vector3(.52, .17, .43), `motor-${spec.id}-a`, `ID ${spec.id} A`);
+      createTerminal(next, new THREE.Vector3(-.52, .17, .43), `motor-${spec.id}-b`, `ID ${spec.id} B`);
       pivotById.set(spec.id, pivot); labelById.set(spec.id, label);
       return next;
     }
-    // 실제 작업대 위의 모터 컬럼과 주변 장치를 함께 배치한다.
-    createWorkbench();
-    createLaptop();
+    // 실제 조립 검토에 필요한 모터·브라켓·OpenCR·케이블만 배치한다.
     createOpenCR();
     let parent = robot;
-    box(parent, [1.34, .22, 1.08], .12, 0x171c23);
-    boxAt(parent, [1.08, .06, .86], new THREE.Vector3(0, .25, 0), 0xd88731, .42);
+    roundedBoxAt(parent, [1.0, .2, 1.0], new THREE.Vector3(0, .12, 0), 0x171c23, .05, .42);
+    boxAt(parent, [1.0, .06, .86], new THREE.Vector3(0, .25, 0), 0xd88731, .42);
     MOTOR_SPECS.forEach((spec, index) => { parent = addJoint(parent, spec, index); });
     const top = new THREE.Mesh(new THREE.SphereGeometry(.2, 20, 12), material(0x72d8ff, .25));
     top.position.y = .22; parent.add(top);
@@ -437,11 +422,13 @@
     }
     function setPivotPose(id, degrees) {
       const pivot = pivotById.get(id); if (!pivot) return;
-      pivot.rotation.set(0, 0, 0);
       const spec = MOTOR_SPECS.find(m => m.id === id);
-      if (spec.axis === 'pitch') pivot.rotation.x = THREE.MathUtils.degToRad(degrees);
-      if (spec.axis === 'yaw') pivot.rotation.y = THREE.MathUtils.degToRad(degrees);
-      if (spec.axis === 'roll') pivot.rotation.z = THREE.MathUtils.degToRad(degrees);
+      const dynamic = new THREE.Euler(0, 0, 0);
+      if (spec.axis === 'pitch') dynamic.x = THREE.MathUtils.degToRad(degrees);
+      if (spec.axis === 'yaw') dynamic.y = THREE.MathUtils.degToRad(degrees);
+      if (spec.axis === 'roll') dynamic.z = THREE.MathUtils.degToRad(degrees);
+      pivot.quaternion.copy(pivot.userData.mountQuaternion || new THREE.Quaternion())
+        .multiply(new THREE.Quaternion().setFromEuler(dynamic));
     }
     function redraw() {
       MOTOR_SPECS.forEach(spec => {
@@ -478,8 +465,8 @@
 
     function setView(view) {
       const presets = {
-        environment: { position: [17, 12, 22], target: [0, 4.2, 0] },
-        robot: { position: [5.1, 4.1, 6.5], target: [-1.15, 3.2, -.45] },
+        environment: { position: [9, 7, 12], target: [0, 4.5, 0] },
+        robot: { position: [8, 6.8, 11], target: [-.9, 4.2, 0] },
       };
       const preset = presets[view]; if (!preset) return;
       camera.position.set(...preset.position);
@@ -561,7 +548,7 @@
       const width = el.clientWidth, height = el.clientHeight;
       camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false);
     }
-    addEventListener('resize', resize); resize(); setView('environment');
+    addEventListener('resize', resize); resize(); setView('robot');
     function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
     animate();
   </script>

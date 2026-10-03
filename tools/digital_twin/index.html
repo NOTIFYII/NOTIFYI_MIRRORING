@@ -79,9 +79,9 @@
       motor: { label:'2XL-430 모터', mesh:'motor', color:[.32,.56,.64], base:[0,0,0] },
       bracket: { label:'EF25-F14 브라켓', mesh:'bracket', color:[.84,.42,.16], base:[1.25,0,0] },
       connector: { label:'모터 간 케이블', mesh:'connector', color:[.18,.23,.29], base:[0,0,1.1] },
-      opencr: { label:'OpenCR REVH', mesh:'opencr', color:[.22,.62,.42], base:[-1.8,-.25,0] }
+      opencr: { label:'OpenCR REVH', mesh:'opencr', color:[.22,.62,.42], base:[-1.8,-.25,0], rot:[-90,0,0] }
     };
-    function makePart(key,index){const d=partDefs[key];return {id:`${key}-${index+1}`,key,pos:[d.base[0]+(index*.45),d.base[1]+(index*.25),d.base[2]],rot:[0,0,0],stretch:1,mate:null,connection:null};}
+    function makePart(key,index){const d=partDefs[key];return {id:`${key}-${index+1}`,key,pos:[d.base[0]+(index*.45),d.base[1]+(index*.25),d.base[2]],rot:d.rot?[...d.rot]:[0,0,0],stretch:1,mate:null,connection:null};}
     const state = { motor:null, bracket:null, connector:null, opencr:null, yaw:.55, pitch:.35, distance:5.7, auto:false, transformMode:'move', selectedKey:'motor', selectedId:'motor-1', pendingPort:null, parts:{motor:[makePart('motor',0)],bracket:[makePart('bracket',0)],connector:[makePart('connector',0)],opencr:[makePart('opencr',0)]}, drag:null, lastFrame:null };
     const $ = id => document.getElementById(id);
     function compile(type, source) { const shader=gl.createShader(type); gl.shaderSource(shader,source); gl.compileShader(shader); if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader)); return shader; }
@@ -112,7 +112,7 @@
     function findPart(key,id){return state.parts[key].find(part=>part.id===id)||null;}
     function rotateOffset(offset,angle){const a=angle*Math.PI/180,c=Math.cos(a),s=Math.sin(a);return [offset[0]*c-offset[1]*s,offset[0]*s+offset[1]*c,offset[2]];}
     function transformPoint(model,point){return [model[0]*point[0]+model[4]*point[1]+model[8]*point[2]+model[12],model[1]*point[0]+model[5]*point[1]+model[9]*point[2]+model[13],model[2]*point[0]+model[6]*point[1]+model[10]*point[2]+model[14]];}
-    const connectionPorts={motor:[{name:'3P-1',kind:'cable',point:[16,11,0]},{name:'3P-2',kind:'cable',point:[-16,11,0]},{name:'MOUNT',kind:'mechanical',point:[18,-9,0]}],bracket:[{name:'MOUNT',kind:'mechanical',point:[-11,-9,0]}],opencr:[{name:'TTL-1',kind:'cable',point:[37,-38,0]},{name:'TTL-2',kind:'cable',point:[0,-38,0]},{name:'TTL-3',kind:'cable',point:[-37,-38,0]}]};
+    const connectionPorts={motor:[{name:'3P-1',kind:'cable',point:[0,16,0]},{name:'3P-2',kind:'cable',point:[-14,16,0]},{name:'MOUNT',kind:'mechanical',point:[18,-9,0]}],bracket:[{name:'MOUNT',kind:'mechanical',point:[-11,-9,0]}],opencr:[{name:'TTL-1',kind:'cable',point:[37,-38,0]},{name:'TTL-2',kind:'cable',point:[0,-38,0]},{name:'TTL-3',kind:'cable',point:[-37,-38,0]}]};
     function portsFor(part){return connectionPorts[part.key]||[];}
     function partAnchor(part,index){const port=portsFor(part)[index]||portsFor(part)[0];return transformPoint(partModel(part),port?port.point:[0,0,0]);}
     function cablePortIndexes(part){return portsFor(part).map((port,index)=>port.kind==='cable'?index:null).filter(index=>index!==null);}

@@ -130,6 +130,8 @@ python scripts/summarize_posture_logs.py \
 - 의사결정 기록: docs/decisions/
 - 탁상용 로봇 벤치마크: docs/BENCHMARK_DESKTOP_ROBOTS.md
 - 공학·디자인 설계 조사: docs/DESKTOP_ROBOT_DESIGN_RESEARCH.md
+- OpenCR 입출력과 Notifyi 연결안: docs/OPENCR_IO_MAP.md
+- 로컬 3D 디지털 트윈: tools/digital_twin/index.html
 
 ## 개발 원칙
 

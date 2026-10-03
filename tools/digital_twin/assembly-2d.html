@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Notifyi Digital Twin</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101317;
+      --panel: #171c22;
+      --panel-2: #202730;
+      --line: #303b47;
+      --muted: #94a1ae;
+      --text: #eef3f7;
+      --accent: #5eead4;
+      --accent-2: #fb923c;
+      --danger: #fb7185;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 1080px;
+      background: radial-gradient(circle at 15% 0%, #1b2830, var(--bg) 42%);
+      color: var(--text);
+      font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(16, 19, 23, .88);
+      backdrop-filter: blur(14px);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    h1, h2, p { margin: 0; }
+    h1 { font-size: 18px; letter-spacing: .02em; }
+    h2 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .subtitle { color: var(--muted); margin-top: 3px; font-size: 12px; }
+    .status { display: flex; align-items: center; gap: 9px; color: var(--muted); }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent-2); box-shadow: 0 0 14px var(--accent-2); }
+    .dot.live { background: var(--accent); box-shadow: 0 0 14px var(--accent); }
+    main { display: grid; grid-template-columns: minmax(560px, 1.15fr) minmax(420px, .85fr); gap: 14px; padding: 14px; }
+    .panel { border: 1px solid var(--line); background: rgba(23, 28, 34, .92); border-radius: 14px; overflow: hidden; min-width: 0; }
+    .panel-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .toolbar { display: flex; gap: 7px; flex-wrap: wrap; }
+    button, select, input[type=range] { accent-color: var(--accent); }
+    button, select {
+      color: var(--text); background: var(--panel-2); border: 1px solid #3a4652; border-radius: 8px;
+      padding: 7px 10px; cursor: pointer; font: inherit;
+    }
+    button:hover { border-color: var(--accent); }
+    button.primary { color: #061b1a; background: var(--accent); border-color: var(--accent); font-weight: 700; }
+    .stage { position: relative; height: 650px; background: #0d1115; }
+    .stage svg { display: block; width: 100%; height: 100%; }
+    .stage-hint { position: absolute; left: 16px; bottom: 14px; padding: 7px 9px; border: 1px solid #34404d; border-radius: 8px; color: var(--muted); background: rgba(13,17,21,.82); font-size: 12px; }
+    .joint { cursor: pointer; }
+    /* These base styles are intentionally global: SVG <use> clones do not
+       reliably accept a descendant selector in every local browser. */
+    .motor-body { fill: #374452; stroke: #b9c4cf; stroke-width: 2; }
+    .motor-face { fill: #1b242e; stroke: #8795a3; stroke-width: 2; }
+    .hole { fill: #11161b; stroke: #9aa8b6; stroke-width: 1.5; }
+    .axis { fill: #fb923c; stroke: #fed7aa; stroke-width: 2; }
+    .selection-ring { display: none; fill: none; stroke: var(--accent); stroke-width: 3; stroke-dasharray: 5 4; }
+    .joint.selected .selection-ring { display: block; }
+    .joint text { fill: #f4f7fa; font-weight: 700; font-size: 14px; pointer-events: none; }
+    .joint .role { fill: #aab6c1; font-size: 11px; font-weight: 500; }
+    .link { stroke: #738294; stroke-width: 14; stroke-linecap: round; opacity: .58; }
+    .cable { fill: none; stroke: var(--accent-2); stroke-width: 3; stroke-dasharray: 8 7; opacity: .88; }
+    .port { fill: #fb923c; stroke: #ffedd5; stroke-width: 1.5; cursor: pointer; }
+    .port.selected { fill: var(--accent); }
+    .desk { fill: #192028; stroke: #34404d; stroke-width: 2; }
+    .gridline { stroke: #26313b; stroke-width: 1; }
+    .cr { fill: #334155; stroke: #cbd5e1; stroke-width: 2; }
+    .cr-label { fill: #e2e8f0; font-weight: 700; font-size: 13px; }
+    .info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 16px; border-top: 1px solid var(--line); }
+    .metric { background: #11171c; border: 1px solid #2e3945; border-radius: 9px; padding: 10px; }
+    .metric span { display: block; color: var(--muted); font-size: 11px; }
+    .metric strong { display: block; margin-top: 3px; font-size: 17px; }
+    .cad-view { height: 520px; overflow: hidden; background: #f7f7f4; position: relative; }
+    .cad-view img { width: 100%; height: 100%; object-fit: contain; transform-origin: 50% 50%; transition: transform .16s ease; }
+    .cad-badge { position: absolute; top: 12px; left: 12px; color: #111827; background: rgba(255,255,255,.85); border: 1px solid #c9c9c4; border-radius: 7px; padding: 5px 8px; font-size: 11px; }
+    .cad-note { padding: 12px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+    .controls { display: grid; gap: 12px; padding: 14px 16px; }
+    .control-row { display: grid; grid-template-columns: 100px 1fr 74px; align-items: center; gap: 10px; }
+    .control-row label { color: var(--muted); }
+    .value { text-align: right; font-variant-numeric: tabular-nums; }
+    .legend { display: flex; gap: 13px; flex-wrap: wrap; color: var(--muted); padding: 0 16px 14px; font-size: 12px; }
+    .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 3px; vertical-align: -1px; }
+    .footer-note { padding: 0 16px 16px; color: var(--muted); font-size: 12px; }
+    @media (max-width: 1200px) { body { min-width: 0; } main { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div><h1>Notifyi Digital Twin</h1><p class="subtitle">2XL-430 CAD 기반 6축 조립·동작 확인 환경</p></div>
+    <div class="status"><span id="statusDot" class="dot"></span><span id="statusText">시뮬레이션 모드</span></div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="panel-head">
+        <div><h2>Assembly</h2><p class="subtitle">현재 구성: ID 2–7 active / ID 1, 8 unused</p></div>
+        <div class="toolbar"><button id="resetBtn">초기 자세</button><button id="playBtn" class="primary">동작 재생</button></div>
+      </div>
+      <div class="stage">
+        <svg id="assembly" viewBox="0 0 900 700" role="img" aria-label="Notifyi 모터 조립 디지털 트윈">
+          <defs>
+            <pattern id="deskGrid" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M 36 0 L 0 0 0 36" class="gridline" fill="none"/></pattern>
+            <g id="motorGlyph">
+              <rect class="motor-body" x="-48" y="-25" width="96" height="50" rx="9"/>
+              <circle class="motor-face" cx="0" cy="0" r="20"/>
+              <circle class="axis" cx="0" cy="0" r="8"/>
+              <circle class="hole" cx="-32" cy="-15" r="4"/><circle class="hole" cx="32" cy="-15" r="4"/>
+              <circle class="hole" cx="-32" cy="15" r="4"/><circle class="hole" cx="32" cy="15" r="4"/>
+            </g>
+          </defs>
+          <rect class="desk" x="18" y="18" width="864" height="664" rx="16"/>
+          <rect x="18" y="18" width="864" height="664" rx="16" fill="url(#deskGrid)" opacity=".65"/>
+          <text x="45" y="55" fill="#94a1ae" font-size="12">Notifyi / bench-top assembly / schematic view</text>
+          <path class="link" d="M 450 590 L 450 500 L 450 410 L 450 320 L 450 230 L 450 140"/>
+          <path class="cable" d="M 205 540 C 280 540, 320 600, 405 590 C 455 584, 500 605, 535 575"/>
+          <g id="opencr"><rect class="cr" x="105" y="500" width="170" height="88" rx="10"/><text class="cr-label" x="124" y="533">OpenCR</text><text x="124" y="555" fill="#aab6c1" font-size="11">USB / DXL bus bridge</text><circle class="port" data-port="opencr-dxl" cx="263" cy="544" r="6"/></g>
+          <g id="joint-2" class="joint" data-id="2" transform="translate(450 500)"><circle class="selection-ring" r="57"/><use href="#motorGlyph"/><text x="63" y="-2">ID 2</text><text class="role" x="63" y="15">waist yaw</text></g>
+          <g id="joint-3" class="joint" data-id="3" transform="translate(450 410)"><circle class="selection-ring" r="57"/><use href="#motorGlyph"/><text x="63" y="-2">ID 3</text><text class="role" x="63" y="15">waist pitch</text></g>
+          <g id="joint-4" class="joint" data-id="4" transform="translate(450 320)"><circle class="selection-ring" r="57"/><use href="#motorGlyph"/><text x="63" y="-2">ID 4</text><text class="role" x="63" y="15">upper yaw</text></g>
+          <g id="joint-5" class="joint" data-id="5" transform="translate(450 230)"><circle class="selection-ring" r="57"/><use href="#motorGlyph"/><text x="63" y="-2">ID 5</text><text class="role" x="63" y="15">upper pitch</text></g>
+          <g id="joint-6" class="joint" data-id="6" transform="translate(450 140)"><circle class="selection-ring" r="57"/><use href="#motorGlyph"/><text x="63" y="-2">ID 6</text><text class="role" x="63" y="15">neck roll</text></g>
+          <g id="joint-7" class="joint" data-id="7" transform="translate(450 75)"><circle class="selection-ring" r="57"/><use href="#motorGlyph"/><text x="63" y="-2">ID 7</text><text class="role" x="63" y="15">neck yaw</text></g>
+          <text x="403" y="642" fill="#94a1ae" font-size="11">base / cable exit</text>
+        </svg>
+        <div class="stage-hint">관절을 클릭한 뒤 ← → 또는 A / D 로 선택 축을 움직입니다.</div>
+      </div>
+      <div class="info">
+        <div class="metric"><span>선택 관절</span><strong id="selectedName">ID 2 · waist yaw</strong></div>
+        <div class="metric"><span>상태</span><strong id="selectedState">zero / 0.0°</strong></div>
+        <div class="metric"><span>축 방향</span><strong id="selectedAxis">yaw</strong></div>
+        <div class="metric"><span>제한 범위</span><strong id="selectedLimit">-45° … +45°</strong></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><div><h2>CAD Reference</h2><p class="subtitle">첨부된 2XL-430.dwg에서 변환한 2D 원본 도면</p></div><div class="toolbar"><button id="cadOut">−</button><button id="cadIn">＋</button><button id="cadFit">맞춤</button></div></div>
+      <div class="cad-view"><img id="cadImage" src="./assets/2XL-430-model.svg" alt="2XL-430 DWG 변환 도면"/><div class="cad-badge">DWG → SVG / model space</div></div>
+      <div class="cad-note">이 DWG는 3D solid가 아니라 도면·치수 중심의 2D 엔티티로 읽혔습니다. 따라서 오른쪽은 실제 도면을 기준으로 확인하고, 왼쪽은 조립·동작 검증용 파라메트릭 트윈으로 분리했습니다.</div>
+      <div class="controls">
+        <div class="control-row"><label for="jointSelect">선택 축</label><select id="jointSelect"></select><span class="value" id="angleValue">0.0°</span></div>
+        <div class="control-row"><label for="angleRange">각도</label><input id="angleRange" type="range" min="-45" max="45" step="0.1" value="0"/><span class="value" id="rangeValue">0.0°</span></div>
+        <div class="control-row"><label for="viewMode">표시 모드</label><select id="viewMode"><option value="schematic">조립 스키매틱</option><option value="front">정면 확인</option><option value="port">포트·케이블 확인</option></select><span></span></div>
+      </div>
+      <div class="legend"><span><i style="background:#374452"></i>2XL-430 body</span><span><i style="background:#fb923c"></i>출력축 / 케이블</span><span><i style="background:#5eead4"></i>선택 축</span></div>
+      <div class="footer-note">현재 버전은 하드웨어에 명령을 보내지 않는 안전한 시뮬레이션입니다. 다음 단계에서 스캔 결과를 읽는 어댑터를 붙이면 실제 ticks·전압·온도와 연결할 수 있습니다.</div>
+    </section>
+  </main>
+
+  <script>
+    const joints = {
+      2: { name: 'waist yaw', axis: 'yaw', min: -45, max: 45, angle: 0 },
+      3: { name: 'waist pitch', axis: 'pitch', min: -21.1, max: 12, angle: 0 },
+      4: { name: 'upper yaw', axis: 'yaw', min: -45, max: 45, angle: 0 },
+      5: { name: 'upper pitch', axis: 'pitch', min: -12, max: 12, angle: 0 },
+      6: { name: 'neck roll', axis: 'roll', min: -12, max: 12, angle: 0 },
+      7: { name: 'neck yaw', axis: 'yaw', min: -12, max: 12, angle: 0 }
+    };
+    let selected = 2;
+    let playing = false;
+    let playTimer = null;
+    let cadZoom = 1;
+    const $ = (id) => document.getElementById(id);
+    const select = $('jointSelect');
+    Object.entries(joints).forEach(([id, j]) => { const opt = document.createElement('option'); opt.value = id; opt.textContent = `ID ${id} · ${j.name}`; select.appendChild(opt); });
+
+    function setSelected(id) { selected = Number(id); select.value = selected; const j = joints[selected]; $('angleRange').min = j.min; $('angleRange').max = j.max; $('angleRange').value = j.angle; document.querySelectorAll('.joint').forEach(el => el.classList.toggle('selected', Number(el.dataset.id) === selected)); renderInfo(); }
+    function renderInfo() { const j = joints[selected]; $('selectedName').textContent = `ID ${selected} · ${j.name}`; $('selectedState').textContent = `zero / ${j.angle.toFixed(1)}°`; $('selectedAxis').textContent = j.axis; $('selectedLimit').textContent = `${j.min}° … +${j.max}°`; $('angleValue').textContent = `${j.angle.toFixed(1)}°`; $('rangeValue').textContent = `${j.angle.toFixed(1)}°`; $('angleRange').value = j.angle; }
+    function render() { Object.entries(joints).forEach(([id, j]) => { const node = $(`joint-${id}`); const amount = j.axis === 'yaw' ? j.angle * .55 : j.angle; node.setAttribute('transform', `translate(450 ${({2:500,3:410,4:320,5:230,6:140,7:75})[id]}) rotate(${amount})`); }); renderInfo(); }
+    function setAngle(value) { const j = joints[selected]; j.angle = Math.max(j.min, Math.min(j.max, Number(value))); render(); }
+    document.querySelectorAll('.joint').forEach(el => el.addEventListener('click', () => setSelected(el.dataset.id)));
+    select.addEventListener('change', e => setSelected(e.target.value));
+    $('angleRange').addEventListener('input', e => setAngle(e.target.value));
+    $('resetBtn').addEventListener('click', () => { Object.values(joints).forEach(j => j.angle = 0); render(); });
+    $('playBtn').addEventListener('click', () => { playing = !playing; $('playBtn').textContent = playing ? '재생 중지' : '동작 재생'; $('statusText').textContent = playing ? '시뮬레이션 재생 중' : '시뮬레이션 모드'; $('statusDot').classList.toggle('live', playing); if (playing) playTimer = setInterval(() => { const t = Date.now() / 1000; Object.entries(joints).forEach(([id, j], index) => { const span = Math.min(j.max, Math.abs(j.min)); j.angle = Math.sin(t * 1.1 + index * .6) * span * .72; }); render(); }, 40); else clearInterval(playTimer); });
+    document.addEventListener('keydown', e => { if (!['ArrowLeft','ArrowRight','a','d','A','D'].includes(e.key)) return; e.preventDefault(); const delta = (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') ? -1 : 1; setAngle(joints[selected].angle + delta); });
+    function updateCad() { $('cadImage').style.transform = `scale(${cadZoom})`; }
+    $('cadIn').addEventListener('click', () => { cadZoom = Math.min(5, cadZoom * 1.25); updateCad(); });
+    $('cadOut').addEventListener('click', () => { cadZoom = Math.max(.25, cadZoom / 1.25); updateCad(); });
+    $('cadFit').addEventListener('click', () => { cadZoom = 1; updateCad(); });
+    $('viewMode').addEventListener('change', e => { document.body.dataset.view = e.target.value; });
+    setSelected(2); render();
+  </script>
+</body>
+</html>

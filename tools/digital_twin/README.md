@@ -1,6 +1,6 @@
-# Notifyi 디지털 트윈 v0.3
+# Notifyi 디지털 트윈 v0.4
 
-첨부된 `2XC-430.stp`와 `2XC-430.igs`를 비교한 뒤, 실제 솔리드가 읽힌 STEP를 기준으로 `assets/2XC-430.step.stl`을 만들었다. 추가로 `EF25-F14.stp`를 브라켓 자산으로 변환하고, [ROBOTIS 공식 OpenCR-Hardware](https://github.com/ROBOTIS-GIT/OpenCR-Hardware)의 `OpenCR_REVH.stl`을 추가했다. 현재는 5개 모터 조립을 확정하지 않고, 각 부품을 1개 이상 배치한 뒤 필요한 만큼 복제해 조립 구성을 탐색한다.
+첨부된 `2XC-430.stp`와 `2XC-430.igs`를 비교한 뒤, 실제 솔리드가 읽힌 STEP를 기준으로 `assets/2XC-430.step.stl`을 만들었다. 추가로 `EF25-F14.stp`를 브라켓 자산으로 변환하고, [ROBOTIS 공식 OpenCR-Hardware](https://github.com/ROBOTIS-GIT/OpenCR-Hardware)의 `OpenCR_REVH.stl`을 추가했다. 실제 하드웨어는 2XL430이므로, 2XC 메시를 체결 검증에 사용하지 않고 공식 2XL CAD 자산으로 교체해야 한다. 현재는 5개 모터 조립을 확정하지 않고, 각 부품을 1개 이상 배치한 뒤 필요한 만큼 복제해 조립 구성을 탐색한다.
 
 ## 실행
 
@@ -19,8 +19,9 @@ python3 -m http.server 18766
 
 ## 할 수 있는 것
 
-- 실제 STEP에서 변환한 2XL-430 메시 표시
+- 2XC-430 STEP 표시 메시를 2XL430 체결 검토용 임시 자산으로 표시
 - 실제 STEP에서 변환한 EF25-F14 브라켓 표시
+- 모터 간 연결 커넥터 프로토타입 표시
 - ROBOTIS 공식 OpenCR REVH 보드 메시 표시
 - 부품별 최소 1개 유지
 - 부품 목록의 `＋`로 인스턴스 추가, `−`로 마지막 인스턴스 삭제
@@ -37,6 +38,7 @@ python3 -m http.server 18766
 - `2XC-430.stp`: 29 solids, 47 shells, 3,103 faces. 외형 bounding box 약 `40.90 × 46.50 × 40.90 mm`.
 - `2XC-430.igs`: 23 roots, 0 solids, surface only. 외형 기준 자산으로는 STEP보다 부적합.
 - `EF25-F14.stp`: 1 solid, 768 faces. 외형 bounding box 약 `24.01 × 29.57 × 44.01 mm`.
+- 모터 연결 커넥터: 2XL430 측면 체결 패턴을 검토하기 위한 프로토타입 판재 `48 × 24 × 3 mm`. 양 끝에 체결홀 표현을 넣었지만, 실제 홀 중심·나사 규격·방향은 2XL430 도면과 실물 대조가 필요하다.
 - `OpenCR_REVH.step`: 68 solids, 10,311 faces. 표시에는 공식 저장소의 STL을 사용한다.
 
 따라서 디지털 트윈 기준 포맷은 STEP로 선택했다. STL은 브라우저가 직접 읽을 수 있도록 변환한 표시용 메시이며, 원본 CAD의 파라메트릭 정보는 보존하지 않는다.
@@ -45,12 +47,14 @@ python3 -m http.server 18766
 
 현재 페이지는 실제 모델의 형상과 배치 후보를 확인하기 위한 시뮬레이션 전용이다. 출력축이 실제 로봇에서 어느 방향을 기준으로 회전하는지, 혼·브라켓이 어느 홀 패턴에 결합되는지는 아직 매핑하지 않았다. 화면의 초기 배치는 조립 확정 전 참고 배치다. 모델 방향을 확정한 뒤 다음 순서로 확장한다.
 
-1. 출력축·혼·브라켓·OpenCR 기준축 표시
-2. 브라켓 홀 패턴과 실제 연결면 정합
-3. OpenCR 전원·DYNAMIXEL·USB 포트의 보드 방향 정합
-4. 실제 ID 하나의 ticks를 read-only로 연결
-5. 한 축의 실제 회전과 3D 모델 회전 비교
-6. 검증 후에만 ID 2~7 조립 및 OpenCR 배선 추가
+1. 실제 2XL430 STEP 자산으로 모터 형상 교체
+2. 출력축·혼·브라켓·커넥터·OpenCR 기준축 표시
+3. 모터-커넥터 홀 패턴과 실제 연결면 정합
+4. 브라켓 홀 패턴과 실제 연결면 정합
+5. OpenCR 전원·DYNAMIXEL·USB 포트의 보드 방향 정합
+6. 실제 ID 하나의 ticks를 read-only로 연결
+7. 한 축의 실제 회전과 3D 모델 회전 비교
+8. 검증 후에만 ID 2~7 조립 및 OpenCR 배선 추가
 
 OpenCR의 입력·출력과 Notifyi 연결안은 [`docs/OPENCR_IO_MAP.md`](../../docs/OPENCR_IO_MAP.md)에 정리했다.
 

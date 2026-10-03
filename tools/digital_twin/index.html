@@ -16,15 +16,18 @@
     .panel { min-width:0; overflow:hidden; border:1px solid var(--line); border-radius:14px; background:rgba(23,29,37,.94); }
     .panel-head { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--line); }
     .toolbar { display:flex; flex-wrap:wrap; gap:7px; } button,a,select { color:var(--text); background:#202a34; border:1px solid #3a4755; border-radius:8px; padding:7px 10px; cursor:pointer; font:inherit; text-decoration:none; } button:hover,a:hover { border-color:var(--cyan); } button.primary { color:#06201d; background:var(--cyan); border-color:var(--cyan); font-weight:700; }
-    .viewport { position:relative; height:700px; background:linear-gradient(180deg,#0b0f14,#111923); } canvas { display:block; width:100%; height:100%; cursor:grab; } canvas.dragging { cursor:grabbing; }
-    .port-overlay { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
-    .port-marker { position:absolute; width:12px; height:12px; padding:0; transform:translate(-50%,-50%); border:2px solid #f8fafc; border-radius:50%; background:rgba(14,165,164,.92); color:#061b1b; box-shadow:0 0 0 3px rgba(94,234,212,.16),0 0 12px rgba(94,234,212,.65); font-size:0; pointer-events:auto; cursor:crosshair; z-index:3; transition:transform .12s ease,background .12s ease,box-shadow .12s ease,border-color .12s ease; }
-    .port-marker:hover { transform:translate(-50%,-50%) scale(1.55); border-color:#fff; background:#5eead4; box-shadow:0 0 0 5px rgba(94,234,212,.28),0 0 22px rgba(94,234,212,.95); }
-    .port-marker.pending { background:#fbbf24; border-color:#fff7ed; box-shadow:0 0 0 5px rgba(251,191,36,.28),0 0 20px rgba(251,191,36,.86); }
-    .port-marker.occupied { background:#64748b; border-color:#cbd5e1; box-shadow:0 0 0 3px rgba(148,163,184,.16); }
-    .port-marker span { position:absolute; left:50%; top:100%; transform:translate(-50%,6px); white-space:nowrap; padding:2px 5px; border:1px solid rgba(94,234,212,.5); border-radius:5px; background:rgba(7,15,20,.94); color:#e2e8f0; text-shadow:0 1px 3px #000; font-size:10px; font-weight:600; opacity:0; pointer-events:none; transition:opacity .12s ease,transform .12s ease; }
-    .port-marker:hover span,.port-marker.pending span { opacity:1; transform:translate(-50%,8px); }
-    .viewport-hint { position:absolute; left:16px; bottom:14px; max-width:420px; padding:8px 10px; color:var(--muted); border:1px solid #334252; border-radius:8px; background:rgba(13,17,23,.8); font-size:12px; pointer-events:none; }
+    .viewport { position:relative; height:clamp(480px,70vh,700px); background:linear-gradient(180deg,#0b0f14,#111923); } canvas { display:block; width:100%; height:100%; cursor:grab; touch-action:none; } canvas.dragging { cursor:grabbing; }
+    .port-overlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:hidden; }
+    .interface-region { fill:rgba(94,234,212,.055); stroke:#5eead4; stroke-width:1.8; stroke-dasharray:5 3; vector-effect:non-scaling-stroke; pointer-events:all; cursor:crosshair; transition:fill .12s ease,stroke-width .12s ease; }
+    .interface-region:hover,.interface-region:focus-visible { fill:rgba(94,234,212,.32); stroke:#fff; stroke-width:3; outline:none; }
+    .interface-region.pending { fill:rgba(251,191,36,.28); stroke:#fbbf24; stroke-dasharray:none; }
+    .interface-region.compatible { stroke:#9cf4dd; stroke-dasharray:none; }
+    .interface-region.occupied { fill:rgba(148,163,184,.14); stroke:#94a3b8; }
+    .interface-region.incompatible { opacity:.22; }
+    .interface-label { fill:#eff5f8; stroke:#0d1117; stroke-width:3px; paint-order:stroke; font-size:12px; font-weight:700; pointer-events:none; opacity:0; }
+    .interface-group:hover .interface-label,.interface-group:focus-within .interface-label,.interface-group.pending .interface-label { opacity:1; }
+    .viewport-hint { position:absolute; left:16px; bottom:14px; max-width:490px; padding:8px 10px; color:var(--muted); border:1px solid #334252; border-radius:8px; background:rgba(13,17,23,.8); font-size:12px; pointer-events:none; }
+    .stage-status { position:absolute; top:46px; left:16px; right:16px; width:max-content; max-width:calc(100% - 32px); padding:7px 10px; border:1px solid #415667; border-radius:7px; background:rgba(13,17,23,.9); color:#d9f8f1; font-size:12px; pointer-events:none; }
     .badge { position:absolute; top:14px; left:16px; padding:5px 8px; border:1px solid #38535a; border-radius:7px; background:rgba(12,27,31,.85); color:var(--cyan); font-size:11px; }
     .controls { display:grid; gap:12px; padding:16px; } .row { display:grid; grid-template-columns:105px 1fr 80px; align-items:center; gap:10px; } .row label { color:var(--muted); } .value { text-align:right; font-variant-numeric:tabular-nums; }
     input[type=range] { width:100%; accent-color:var(--cyan); } .check { display:flex; gap:8px; align-items:center; color:var(--muted); } input[type=checkbox] { accent-color:var(--cyan); }
@@ -42,13 +45,13 @@
 </head>
 <body>
   <header>
-    <div><h1>Notifyi · 2XL-430 3D Digital Twin</h1><p class="subtitle">실제 CAD 데이터 기반 단일 모터 검증 환경</p></div>
+    <div><h1>Notifyi · 2XL-430 3D Digital Twin</h1><p class="subtitle">모터 프록시와 부품 메시로 조립 동선을 검토하는 작업 공간</p></div>
     <div class="status"><span id="statusDot" class="dot"></span><span id="statusText">CAD 모델 로딩 중</span></div>
   </header>
   <main>
     <section class="panel">
       <div class="panel-head"><div><h2>Motor + Bracket + DXL TTL + OpenCR / 3D</h2><p class="subtitle">모터·브라켓·DXL TTL 케이블·공식 OpenCR REVH 보드를 함께 배치합니다.</p></div><div class="toolbar"><button id="resetBtn">초기 뷰</button><button id="autoBtn" class="primary">자동 회전</button></div></div>
-      <div class="viewport"><canvas id="gl" aria-label="2XL-430 모터, EF25-F14 브라켓, DXL TTL 케이블, OpenCR 보드 3D 디지털 트윈"></canvas><div id="portOverlay" class="port-overlay" aria-label="연결 포트"></div><div class="badge">STEP/STL · motor + bracket + DXL TTL + OpenCR</div><div class="viewport-hint">작은 점은 연결점입니다. 연결점이 아닌 모델 몸체를 누르고 드래그하면 부품을 이동·회전합니다. 연결은 점을 차례로 클릭하세요.</div></div>
+      <div class="viewport"><canvas id="gl" aria-label="2XL-430 모터, EF25-F14 브라켓, DXL TTL 케이블, OpenCR 보드 3D 디지털 트윈"></canvas><svg id="portOverlay" class="port-overlay" aria-label="연결 가능한 표면"></svg><div class="badge">조립 검토 · 형상 좌표는 임시</div><div id="stageStatus" class="stage-status" aria-live="polite">윤곽선을 선택해 연결 · 몸체를 잡고 이동 · 빈 공간을 끌어 시점 변경</div><div class="viewport-hint">윤곽선은 연결 가능한 영역입니다. 몸체는 이동, 빈 공간은 시점 회전, 휠은 확대·축소에 사용하세요.</div></div>
       <div class="controls">
         <div class="editor"><div class="editor-head"><strong>부품 목록</strong><small>각 부품 최소 1개</small></div><div id="partList" class="part-list"></div></div>
         <div class="editor"><div class="editor-head"><strong>선택한 부품</strong><span id="selectionValue" class="selection">모터 1</span></div><div class="mode-buttons"><button id="moveMode" class="active">이동</button><button id="rotateMode">회전</button></div>
@@ -57,18 +60,18 @@
           <div class="row"><label for="partZ">Z 위치</label><input id="partZ" type="range" min="-3" max="3" step=".05" value="0"><span id="partZValue" class="value">0.00</span></div>
           <div class="row"><label for="partAngle">Z 회전</label><input id="partAngle" type="range" min="-180" max="180" step="1" value="0"><span id="partAngleValue" class="value">0°</span></div>
           <div class="toolbar"><button id="detachBtn">선택 부품 연결 해제</button></div>
-          <p id="mateStatus" class="editor-note" aria-live="polite">작은 연결점을 직접 차례로 클릭하세요. 몸체를 누르면 부품 편집, 연결점을 누르면 연결만 수행합니다.</p>
+          <p id="mateStatus" class="editor-note" aria-live="polite">체결면 윤곽선을 고른 뒤 브라켓 몸체를 클릭하세요. 윤곽선 좌표는 실제 홀 중심과 아직 대조되지 않았습니다.</p>
           <div class="toolbar"><button id="resetPartBtn">선택 부품 초기 위치</button><button id="resetAllBtn">전체 초기 배치</button></div>
-          <p class="editor-note">연결점이 아닌 부품 몸체를 클릭해 선택한 뒤 드래그하세요. 빈 공간을 드래그하면 카메라가 회전합니다. 브라켓은 모터의 왼쪽·오른쪽 체결면 중 선택한 면에 맞춰집니다.</p>
+          <p class="editor-note">부품 몸체를 잡아 드래그하면 카메라 방향에 맞춰 이동합니다. 빈 공간 드래그로 시점을 바꾸고, 왼쪽 면은 카메라 뷰에서 볼 수 있습니다.</p>
         </div>
-        <div class="row"><label for="cameraView">카메라 뷰</label><select id="cameraView"><option value="perspective">Perspective</option><option value="front">Front</option><option value="side">Side</option><option value="top">Top</option></select><span></span></div>
+        <div class="row"><label for="cameraView">카메라 뷰</label><select id="cameraView"><option value="perspective">사선</option><option value="front">정면</option><option value="side">오른쪽</option><option value="left">왼쪽</option><option value="top">위쪽</option></select><span></span></div>
       </div>
     </section>
     <aside class="panel">
       <div class="section"><h2>채택 포맷</h2><div class="file"><span>2XL430-compatible.stl</span><small>envelope proxy</small></div><p>ROBOTIS 공식 사양의 2XL430 외형 36 × 46.5 × 36 mm에 맞춰 기존 2XC 기준 메시의 폭·깊이를 보정한 프록시입니다. 공식 STEP 링크는 확인했지만 현재 다운로드 서버가 오류 페이지로 연결되어 정확한 형상 대조 전 단계로 사용합니다.</p><div class="file"><span>EF25-F14.stp</span><small>1 solid · 768 faces</small></div><p>브라켓은 X430 계열 호환 프레임으로 모터와 독립된 메시로 표시합니다. 실제 체결은 FRAME 홀 패턴과 M2.5 프레임 볼트를 기준으로 합니다.</p><div class="file"><span>X3P JST-JST 180mm cable</span><small>DXL TTL 3P</small></div><p>2XL430 기본 구성품인 X3P JST-JST 케이블을 기준으로 표시합니다. 모터와 OpenCR의 TTL 포트는 같은 멀티드롭 버스에 연결됩니다.</p><div class="file"><span>OpenCR_REVH.step</span><small>68 solids · 10311 faces</small></div><p>ROBOTIS 공식 OpenCR-Hardware 저장소의 REVH STEP에서 제공된 보드 모델입니다. 표시용으로 공식 STL을 사용했습니다.</p><div class="file"><span>2XC-430.igs</span><small>0 solids · surface only</small></div><p>IGES는 23개 루트와 표면만 읽혀 외형 기준으로는 제외했습니다.</p></div>
       <div class="section"><h2>형상 정보</h2><div class="metrics" style="padding:12px 0 0"><div class="metric"><span>2XL430 실제 사양</span><strong>36 × 46.5 × 36</strong></div><div class="metric"><span>DXL cable</span><strong>X3P / 180</strong></div><div class="metric"><span>OpenCR mesh bounds</span><strong>75.01 × 109.00 × 19.36</strong></div><div class="metric"><span>단위</span><strong>mm</strong></div></div></div>
       <div class="section"><h2>OpenCR 입출력</h2><p>전원 입력 5V USB 또는 5–24V 배터리/SMPS. 출력은 DYNAMIXEL TTL×3, RS-485×3, 12V/5V/3.3V, UART×2, CAN×1, GPIO×18, PWM×6, ADC×6, I²C×1, SPI×1입니다. 상세 핀과 Notifyi 적용안은 문서에 정리했습니다.</p></div>
-      <div class="section"><h2>디지털 트윈 범위</h2><p>각 부품은 최소 한 개를 유지하며 목록의 +/−로 인스턴스를 추가·삭제할 수 있습니다. 선택한 부품은 위치 슬라이더 또는 캔버스 드래그로 이동하고, 회전 모드에서 Z축 방향을 조정합니다. 케이블은 모터의 실제 DXL 3P 포트와 OpenCR TTL 포트를 같은 TTL 버스로 연결하고, 브라켓은 모터·브라켓의 FRAME 체결 홀을 기준으로 맞물립니다. TTL 포트 번호는 ID와 일대일 대응하지 않으며, ID 2~7 조립과 실제 ticks 연동은 관절축을 확정한 다음 단계입니다.</p></div>
+      <div class="section"><h2>디지털 트윈 범위</h2><p>각 부품은 최소 한 개를 유지하며 목록의 +/−로 추가·삭제할 수 있습니다. 몸체 드래그로 배치하고 윤곽선으로 조립 위치를 미리 봅니다. 모터는 2XC 메시를 2XL 외형 치수로 보정한 프록시이고 연결면과 TTL 포트 좌표는 임시입니다. 체결 홀 중심, 브라켓 간섭, 케이블 길이와 실제 배선은 아직 검증되지 않았습니다.</p></div>
       <div class="section"><h2>안전 경계</h2><p>이 페이지는 STL을 읽어 화면에 표시하는 시뮬레이션 전용입니다. OpenCR나 다이나믹셀에 쓰기 명령을 보내지 않습니다.</p><div class="toolbar" style="margin-top:12px"><a href="./assembly-2d.html">기존 2D 조립 뷰</a></div></div>
       <div class="note">모델이 실제 외형과 맞는지 먼저 확인한 뒤, 다음에 출력축 기준·브라켓 기준·ID별 관절축을 하나씩 매핑하겠습니다.</div>
     </aside>
@@ -79,11 +82,11 @@
     const partDefs = {
       motor: { label:'2XL-430 모터', mesh:'motor', color:[.32,.56,.64], base:[0,0,0] },
       bracket: { label:'EF25-F14 브라켓', mesh:'bracket', color:[.84,.42,.16], base:[1.9,0,0] },
-      connector: { label:'DXL TTL 케이블', mesh:'connector', color:[.18,.23,.29], base:[0,0,1.1] },
-      opencr: { label:'OpenCR REVH', mesh:'opencr', color:[.22,.62,.42], base:[-1.8,-.25,0], rot:[-90,0,0] }
+      connector: { label:'DXL TTL 케이블', mesh:'connector', color:[.18,.23,.29], base:[.3,-1.6,1.2] },
+      opencr: { label:'OpenCR REVH', mesh:'opencr', color:[.22,.62,.42], base:[-3.2,-1.6,-2.3], rot:[-90,0,0] }
     };
     function makePart(key,index){const d=partDefs[key];return {id:`${key}-${index+1}`,key,pos:[d.base[0]+(index*.45),d.base[1]+(index*.25),d.base[2]],rot:d.rot?[...d.rot]:[0,0,0],stretch:1,mate:null,connection:null};}
-    const state = { motor:null, bracket:null, connector:null, opencr:null, yaw:.55, pitch:.35, distance:5.7, auto:false, transformMode:'move', selectedKey:'motor', selectedId:'motor-1', pendingPort:null, parts:{motor:[makePart('motor',0)],bracket:[makePart('bracket',0)],connector:[makePart('connector',0)],opencr:[makePart('opencr',0)]}, drag:null, lastFrame:null };
+    const state = { motor:null, bracket:null, connector:null, opencr:null, yaw:.55, pitch:.35, distance:7, auto:false, transformMode:'move', selectedKey:'motor', selectedId:'motor-1', pendingPort:null, parts:{motor:[makePart('motor',0)],bracket:[makePart('bracket',0)],connector:[makePart('connector',0)],opencr:[makePart('opencr',0)]}, drag:null, lastFrame:null };
     const $ = id => document.getElementById(id);
     function compile(type, source) { const shader=gl.createShader(type); gl.shaderSource(shader,source); gl.compileShader(shader); if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader)); return shader; }
     const program = gl.createProgram();
@@ -91,6 +94,11 @@
     gl.attachShader(program, compile(gl.FRAGMENT_SHADER, `precision mediump float; varying vec3 v_normal; varying vec3 v_pos; uniform vec3 u_color; void main(){ vec3 n=normalize(v_normal); vec3 l=normalize(vec3(-.45,.7,1.0)); float light=.22+.78*max(dot(n,l),0.0); vec3 c=u_color*light; gl_FragColor=vec4(c,1.0); }`));
     gl.linkProgram(program); if(!gl.getProgramParameter(program,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program)); gl.useProgram(program);
     const loc = { pos:gl.getAttribLocation(program,'a_position'), normal:gl.getAttribLocation(program,'a_normal'), model:gl.getUniformLocation(program,'u_model'), view:gl.getUniformLocation(program,'u_view'), proj:gl.getUniformLocation(program,'u_proj'), color:gl.getUniformLocation(program,'u_color') };
+    const pickProgram=gl.createProgram();
+    gl.attachShader(pickProgram,compile(gl.VERTEX_SHADER,`attribute vec3 a_position; uniform mat4 u_model,u_view,u_proj; void main(){gl_Position=u_proj*u_view*u_model*vec4(a_position,1.0);}`));
+    gl.attachShader(pickProgram,compile(gl.FRAGMENT_SHADER,`precision mediump float; uniform vec3 u_id; void main(){gl_FragColor=vec4(u_id,1.0);}`));
+    gl.linkProgram(pickProgram);if(!gl.getProgramParameter(pickProgram,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(pickProgram));
+    const pickLoc={pos:gl.getAttribLocation(pickProgram,'a_position'),model:gl.getUniformLocation(pickProgram,'u_model'),view:gl.getUniformLocation(pickProgram,'u_view'),proj:gl.getUniformLocation(pickProgram,'u_proj'),id:gl.getUniformLocation(pickProgram,'u_id')};
     const identity=()=>[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
     function mul(a,b){const o=new Array(16).fill(0);for(let c=0;c<4;c++)for(let r=0;r<4;r++)for(let k=0;k<4;k++)o[c*4+r]+=a[k*4+r]*b[c*4+k];return o;}
     function perspective(fovy,aspect,near,far){const f=1/Math.tan(fovy/2), nf=1/(near-far);return [f/aspect,0,0,0,0,f,0,0,0,0,(far+near)*nf,-1,0,0,2*far*near*nf,0];}
@@ -113,16 +121,15 @@
     function findPart(key,id){return state.parts[key].find(part=>part.id===id)||null;}
     function rotateOffset(offset,angle){const a=angle*Math.PI/180,c=Math.cos(a),s=Math.sin(a);return [offset[0]*c-offset[1]*s,offset[0]*s+offset[1]*c,offset[2]];}
     function transformPoint(model,point){return [model[0]*point[0]+model[4]*point[1]+model[8]*point[2]+model[12],model[1]*point[0]+model[5]*point[1]+model[9]*point[2]+model[13],model[2]*point[0]+model[6]*point[1]+model[10]*point[2]+model[14]];}
-    // 포트는 전기 포트와 기계 체결 홀을 분리한다. 좌표는 CAD 기준점을 정리하기 위한
-    // 인터페이스 좌표이며, 상부 원형 홀을 케이블 포트로 간주하지 않는다.
+    // 모든 좌표는 현재 프록시 메시의 임시 인터페이스 좌표다. 실제 체결/배선 검증값이 아니다.
     const connectionPorts={
       motor:[
-        {name:'DXL-3P-A',kind:'ttl',point:[18,8,0]},
-        {name:'DXL-3P-B',kind:'ttl',point:[18,-8,0]},
-        {name:'FRAME-R-1',kind:'mechanical',side:'right',point:[18,14,0]},
-        {name:'FRAME-R-2',kind:'mechanical',side:'right',point:[18,-14,0]},
-        {name:'FRAME-L-1',kind:'mechanical',side:'left',point:[-18,14,0]},
-        {name:'FRAME-L-2',kind:'mechanical',side:'left',point:[-18,-14,0]}
+        {name:'DXL-3P-A',kind:'ttl',point:[12,8,18]},
+        {name:'DXL-3P-B',kind:'ttl',point:[12,-8,18]},
+        {name:'FRAME-R-1',kind:'mechanical',side:'right',point:[18,8,0]},
+        {name:'FRAME-R-2',kind:'mechanical',side:'right',point:[18,-8,0]},
+        {name:'FRAME-L-1',kind:'mechanical',side:'left',point:[-18,8,0]},
+        {name:'FRAME-L-2',kind:'mechanical',side:'left',point:[-18,-8,0]}
       ],
       bracket:[
         {name:'FRAME-1',kind:'mechanical',point:[-11,8,0]},
@@ -141,12 +148,18 @@
     function pointDistance(a,b){return Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);}
     function nearestPart(part,key){return state.parts[key].filter(candidate=>candidate.id!==part.id).sort((a,b)=>pointDistance(partCenter(part),partCenter(a))-pointDistance(partCenter(part),partCenter(b)))[0]||null;}
     function nearestAnchorIndex(part,target){const indexes=cablePortIndexes(part);return indexes.sort((a,b)=>pointDistance(partAnchor(part,a),target)-pointDistance(partAnchor(part,b),target))[0]??0;}
-    function setMateStatus(message){$('mateStatus').textContent=message;}
-    function alignBracketToMotor(bracket,motor,motorAnchor=2,bracketAnchor=0,rotationOffset=0){const motorPoint=partAnchor(motor,motorAnchor),localPoint=portsFor(bracket)[bracketAnchor]?.point||[0,0,0],unit=1/state.motor.radius,angle=motor.rot[2]+rotationOffset;const rotated=rotateOffset([localPoint[0]*unit,localPoint[1]*unit,localPoint[2]*unit],angle);bracket.rot[2]=angle;bracket.pos=[motorPoint[0]-rotated[0],motorPoint[1]-rotated[1],motorPoint[2]-rotated[2]];}
-    function updateMatedParts(){state.parts.bracket.forEach(bracket=>{if(!bracket.mate)return;const parent=findPart(bracket.mate.parentKey,bracket.mate.parentId);if(!parent){bracket.mate=null;return;}alignBracketToMotor(bracket,parent,bracket.mate.parentAnchor,bracket.mate.childAnchor,bracket.mate.rotation||0);});}
-    function updateCablePart(cable){if(!cable.connection)return;const a=findPart(cable.connection.a.key,cable.connection.a.id),b=findPart(cable.connection.b.key,cable.connection.b.id);if(!a||!b){cable.connection=null;cable.stretch=1;return;}const pa=partAnchor(a,cable.connection.a.anchor),pb=partAnchor(b,cable.connection.b.anchor),dx=pb[0]-pa[0],dy=pb[1]-pa[1],length=Math.hypot(dx,dy);cable.pos=[(pa[0]+pb[0])/2,(pa[1]+pb[1])/2,(pa[2]+pb[2])/2];cable.rot[2]=Math.atan2(dy,dx)*180/Math.PI;cable.stretch=Math.max(.25,length/(40/state.motor.radius));}
+    function setMateStatus(message){$('mateStatus').textContent=message;$('stageStatus').textContent=message;}
+    function alignBracketToMotor(bracket,motor,motorAnchor=2,bracketAnchor=0,flipY=0){
+      const motorPoint=partAnchor(motor,motorAnchor),localPoint=portsFor(bracket)[bracketAnchor]?.point||[0,0,0],unit=1/state.motor.radius;
+      bracket.rot[1]=flipY;bracket.rot[2]=motor.rot[2];
+      const rotation=mul(rz(bracket.rot[2]*Math.PI/180),ry(bracket.rot[1]*Math.PI/180));
+      const offset=transformPoint(rotation,localPoint.map(v=>v*unit));
+      bracket.pos=motorPoint.map((v,i)=>v-offset[i]);
+    }
+    function updateMatedParts(){state.parts.bracket.forEach(bracket=>{if(!bracket.mate)return;const parent=findPart(bracket.mate.parentKey,bracket.mate.parentId);if(!parent){bracket.mate=null;return;}alignBracketToMotor(bracket,parent,bracket.mate.parentAnchor,bracket.mate.childAnchor,bracket.mate.flipY||0);});}
+    function updateCablePart(cable){if(!cable.connection)return;const a=findPart(cable.connection.a.key,cable.connection.a.id),b=findPart(cable.connection.b.key,cable.connection.b.id);if(!a||!b){cable.connection=null;cable.stretch=1;return;}const pa=partAnchor(a,cable.connection.a.anchor),pb=partAnchor(b,cable.connection.b.anchor),dx=pb[0]-pa[0],dy=pb[1]-pa[1],dz=pb[2]-pa[2],length=Math.hypot(dx,dy,dz);cable.pos=[(pa[0]+pb[0])/2,(pa[1]+pb[1])/2,(pa[2]+pb[2])/2];cable.rot[1]=Math.atan2(-dz,Math.hypot(dx,dy))*180/Math.PI;cable.rot[2]=Math.atan2(dy,dx)*180/Math.PI;cable.stretch=Math.max(.25,length/(40/state.motor.radius));}
     function updateConnections(){updateMatedParts();state.parts.connector.forEach(updateCablePart);}
-    function draw(){if(!state.motor||!state.bracket||!state.opencr)return;updateConnections();resize();gl.enable(gl.DEPTH_TEST);gl.clearColor(.04,.06,.08,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);const aspect=canvas.width/canvas.height;let dist=state.distance;let eye=[Math.cos(state.pitch)*Math.sin(state.yaw)*dist,Math.sin(state.pitch)*dist,Math.cos(state.pitch)*Math.cos(state.yaw)*dist];let view=lookAt(eye,[.0,0,0],[0,1,0]);let proj=perspective(Math.PI/4,aspect,.01,100);state.lastFrame={view,proj};gl.uniformMatrix4fv(loc.view,false,new Float32Array(view));gl.uniformMatrix4fv(loc.proj,false,new Float32Array(proj));visibleParts().forEach(part=>drawMesh(partMesh(part),partModel(part),partColor(part)));updatePortOverlay();if(state.auto){state.yaw+=.008;requestAnimationFrame(draw);}}
+    function draw(){if(!state.motor||!state.bracket||!state.opencr)return;updateConnections();resize();gl.enable(gl.DEPTH_TEST);gl.clearColor(.04,.06,.08,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);const aspect=canvas.width/canvas.height;let dist=state.distance;let eye=[Math.cos(state.pitch)*Math.sin(state.yaw)*dist,Math.sin(state.pitch)*dist,Math.cos(state.pitch)*Math.cos(state.yaw)*dist];let view=lookAt(eye,[.0,0,0],[0,1,0]);let proj=perspective(Math.PI/4,aspect,.01,100);state.lastFrame={view,proj,eye};gl.uniformMatrix4fv(loc.view,false,new Float32Array(view));gl.uniformMatrix4fv(loc.proj,false,new Float32Array(proj));visibleParts().forEach(part=>drawMesh(partMesh(part),partModel(part),partColor(part)));updatePortOverlay();if(state.auto){state.yaw+=.008;requestAnimationFrame(draw);}}
     function selectedPart(){return state.parts[state.selectedKey].find(part=>part.id===state.selectedId)||state.parts[state.selectedKey][0];}
     function selectPart(key,id){state.selectedKey=key;state.selectedId=id;updateSelectionControls();renderPartList();draw();}
     function renderPartList(){const list=$('partList');if(!list)return;list.innerHTML=Object.keys(partDefs).map(key=>{const d=partDefs[key],parts=state.parts[key],selected=state.selectedKey===key;return `<div class="part-row ${selected?'selected':''}" data-key="${key}"><button class="part-name" data-action="select">${d.label}</button><span class="part-count">${parts.length}</span><button data-action="remove" title="${parts.length===1?'최소 1개라 삭제할 수 없습니다':'마지막 인스턴스 삭제'}">−</button><button data-action="add" title="부품 추가">＋</button></div>`;}).join('');}
@@ -156,22 +169,128 @@
     function detachPart(part){if(part.mate){part.mate=null;setMateStatus(`${partDefs[part.key].label} 맞물림을 해제했습니다.`);}if(part.connection){part.connection=null;part.stretch=1;setMateStatus('케이블 연결을 해제했습니다.');}}
     function resetPart(part){detachPart(part);const index=state.parts[part.key].indexOf(part);const fresh=makePart(part.key,index);part.pos=fresh.pos;part.rot=fresh.rot;part.stretch=fresh.stretch;part.mate=null;part.connection=null;updateSelectionControls();draw();}
     function resetAllParts(){Object.keys(state.parts).forEach(key=>state.parts[key]=state.parts[key].map((part,index)=>makePart(key,index)));selectPart(state.selectedKey,state.parts[state.selectedKey][0].id);}
-    function snapBracket(bracket,motor,motorAnchor=2,bracketAnchor=0,rotationOffset=0){alignBracketToMotor(bracket,motor,motorAnchor,bracketAnchor,rotationOffset);bracket.mate={parentKey:motor.key,parentId:motor.id,parentAnchor:motorAnchor,childAnchor:bracketAnchor,rotation:rotationOffset};setMateStatus(`${partDefs[bracket.key].label} ↔ ${partDefs[motor.key].label} 체결 홀 패턴에 맞물렸습니다.`);}
+    function snapBracket(bracket,motor,motorAnchor=2,bracketAnchor=0,flipY=0){alignBracketToMotor(bracket,motor,motorAnchor,bracketAnchor,flipY);bracket.mate={parentKey:motor.key,parentId:motor.id,parentAnchor:motorAnchor,childAnchor:bracketAnchor,flipY};setMateStatus(`${partDefs[bracket.key].label} ↔ ${partDefs[motor.key].label} 조립 위치 미리보기`);}
     function samePort(a,b){return a&&b&&a.key===b.key&&a.id===b.id&&a.anchor===b.anchor;}
     function portInUse(port,ignoreCableId=null){return state.parts.connector.find(cable=>cable.id!==ignoreCableId&&cable.connection&&([cable.connection.a,cable.connection.b].some(end=>samePort(end,port))));}
     function portLabel(part,index){const port=portsFor(part)[index];const number=state.parts[part.key].indexOf(part)+1;return `${part.key==='motor'?'M'+number:part.key==='bracket'?'Bracket':'OpenCR'} · ${port?.name||'PORT'}`;}
     function projectWorldPoint(point){return projectPoint(identity(),point);}
-    function mechanicalPortInUse(port){const part=findPart(port.key,port.id);if(!part||port.kind!=='mechanical')return false;if(part.key==='bracket')return Boolean(part.mate);return state.parts.bracket.some(bracket=>bracket.mate?.parentId===part.id&&bracket.mate?.parentAnchor===port.anchor);}
+    function mechanicalPortInUse(port){const part=findPart(port.key,port.id);if(!part||port.kind!=='mechanical')return false;if(part.key==='bracket')return Boolean(part.mate);const side=portsFor(part)[port.anchor]?.side;return state.parts.bracket.some(bracket=>bracket.mate?.parentId===part.id&&portsFor(part)[bracket.mate.parentAnchor]?.side===side);}
     function validPortPair(first,second){if(!first||!second||first.kind!==second.kind)return false;if(first.key===second.key&&first.id===second.id)return false;if(first.kind==='mechanical')return new Set([first.key,second.key]).size===2&&[first.key,second.key].every(key=>key==='motor'||key==='bracket');if(first.kind==='ttl')return (first.key==='motor'||first.key==='opencr')&&(second.key==='motor'||second.key==='opencr')&&!(first.key==='opencr'&&second.key==='opencr');return false;}
-    function updatePortOverlay(){const overlay=$('portOverlay');if(!overlay||!state.lastFrame)return;overlay.innerHTML='';const fragment=document.createDocumentFragment();visibleParts().filter(part=>portsFor(part).length).forEach(part=>portsFor(part).forEach((port,index)=>{const point=projectWorldPoint(partAnchor(part,index));if(!point)return;const marker=document.createElement('div');const candidate={key:part.key,id:part.id,anchor:index,kind:port.kind};const selected=state.pendingPort&&samePort(state.pendingPort,candidate);const occupied=port.kind==='mechanical'?mechanicalPortInUse(candidate):Boolean(portInUse(candidate));marker.className=`port-marker${selected?' pending':''}${occupied?' occupied':''}`;marker.style.left=`${point[0]}px`;marker.style.top=`${point[1]}px`;marker.dataset.key=part.key;marker.dataset.id=part.id;marker.dataset.anchor=index;marker.textContent=port.name;marker.setAttribute('role','button');marker.setAttribute('tabindex','0');marker.setAttribute('aria-label',`${portLabel(part,index)} 연결점`);const label=document.createElement('span');label.textContent=portLabel(part,index);marker.appendChild(label);marker.title=occupied?'이미 연결된 기준점입니다':'연결점 직접 선택';const activate=event=>{event.preventDefault();event.stopPropagation();handlePortClick(candidate);};marker.addEventListener('pointerdown',activate);marker.addEventListener('click',event=>{if(event.detail===0)activate(event);});marker.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){activate(event);}});fragment.appendChild(marker);}));overlay.appendChild(fragment);}
-    function handlePortClick(port){if(state.pendingPort&&samePort(state.pendingPort,port)){state.pendingPort=null;setMateStatus('첫 번째 연결점 선택을 취소했습니다.');draw();return;}const currentPart=findPart(port.key,port.id);if(!currentPart)return;const occupied=port.kind==='mechanical'?mechanicalPortInUse(port):Boolean(portInUse(port));if(occupied){setMateStatus(`${portLabel(currentPart,port.anchor)}는 이미 연결되어 있습니다. 먼저 선택 부품의 연결을 해제하세요.`);return;}if(!state.pendingPort){state.pendingPort=port;setMateStatus(`${portLabel(currentPart,port.anchor)} 선택됨 · 호환되는 연결점만 강조됩니다.`);draw();return;}if(!validPortPair(state.pendingPort,port)){setMateStatus('이 두 연결점은 호환되지 않습니다. DXL 3P는 다른 모터 3P 또는 OpenCR TTL, FRAME 홀은 모터와 브라켓 사이에서만 연결할 수 있습니다.');draw();return;}if(port.kind==='mechanical'){const first=findPart(state.pendingPort.key,state.pendingPort.id),second=currentPart;const motor=first.key==='motor'?first:second.key==='motor'?second:null;const bracket=first.key==='bracket'?first:second.key==='bracket'?second:null;const motorAnchor=state.pendingPort.key==='motor'?state.pendingPort.anchor:port.anchor,bracketAnchor=state.pendingPort.key==='bracket'?state.pendingPort.anchor:port.anchor;const motorPort=portsFor(motor)[motorAnchor];const rotationOffset=motorPort?.side==='left'?180:0;const firstLabel=portLabel(first,state.pendingPort.anchor),secondLabel=portLabel(second,port.anchor);snapBracket(bracket,motor,motorAnchor,bracketAnchor,rotationOffset);state.pendingPort=null;selectPart('bracket',bracket.id);setMateStatus(`${firstLabel} ↔ ${secondLabel} 체결 홀 패턴 맞물림 완료${rotationOffset?' · 왼쪽 체결면 방향으로 브라켓을 뒤집었습니다.':''}`);return;}const selectedCable=state.selectedKey==='connector'?selectedPart():null;const cable=selectedCable||state.parts.connector.find(item=>!item.connection)||state.parts.connector[0];if(!cable){setMateStatus('케이블 인스턴스가 없습니다. 부품 목록에서 케이블을 추가하세요.');return;}cable.connection={a:state.pendingPort,b:port};const firstLabel=portLabel(findPart(cable.connection.a.key,cable.connection.a.id),cable.connection.a.anchor),secondLabel=portLabel(findPart(cable.connection.b.key,cable.connection.b.id),cable.connection.b.anchor);state.pendingPort=null;selectPart('connector',cable.id);setMateStatus(`${firstLabel} ↔ ${secondLabel} DXL TTL 버스 연결 완료`);}
+    const svgNS='http://www.w3.org/2000/svg';
+    const interfaces={
+      motor:[
+        {anchor:0,name:'DXL A · 위치 임시',normal:[0,0,1],corners:[[8,4,18],[16,4,18],[16,12,18],[8,12,18]]},
+        {anchor:1,name:'DXL B · 위치 임시',normal:[0,0,1],corners:[[8,-12,18],[16,-12,18],[16,-4,18],[8,-4,18]]},
+        {anchor:2,name:'오른쪽 체결면 · 위치 임시',normal:[1,0,0],corners:[[18,-12,-12],[18,12,-12],[18,12,12],[18,-12,12]]},
+        {anchor:4,name:'왼쪽 체결면 · 위치 임시',normal:[-1,0,0],corners:[[-18,-12,-12],[-18,12,-12],[-18,12,12],[-18,-12,12]]}
+      ],
+      bracket:[{anchor:0,name:'브라켓 체결면 · 위치 임시',normal:[-1,0,0],corners:[[-11,-11,-11],[-11,11,-11],[-11,11,11],[-11,-11,11]]}],
+      opencr:[
+        {anchor:0,name:'OpenCR TTL A · 위치 임시',normal:[0,0,1],corners:[[29,-43,0],[45,-43,0],[45,-33,0],[29,-33,0]]},
+        {anchor:1,name:'OpenCR TTL B · 위치 임시',normal:[0,0,1],corners:[[-8,-43,0],[8,-43,0],[8,-33,0],[-8,-33,0]]},
+        {anchor:2,name:'OpenCR TTL C · 위치 임시',normal:[0,0,1],corners:[[-45,-43,0],[-29,-43,0],[-29,-33,0],[-45,-33,0]]}
+      ]
+    };
+    function interfaceFacesCamera(part,zone){
+      const model=partModel(part),center=transformPoint(model,[0,0,0]),tip=transformPoint(model,zone.normal);
+      const towardCamera=state.lastFrame.eye.map((value,i)=>value-center[i]);
+      return tip.reduce((sum,value,i)=>sum+(value-center[i])*towardCamera[i],0)>0;
+    }
+    function updatePortOverlay(){
+      const overlay=$('portOverlay');if(!overlay||!state.lastFrame)return;
+      overlay.setAttribute('viewBox',`0 0 ${canvas.clientWidth} ${canvas.clientHeight}`);
+      overlay.replaceChildren();
+      for(const part of visibleParts())for(const zone of interfaces[part.key]||[]){
+        if(!interfaceFacesCamera(part,zone))continue;
+        const points=zone.corners.map(point=>projectPoint(partModel(part),point));if(points.some(point=>!point))continue;
+        const port=portsFor(part)[zone.anchor],candidate={key:part.key,id:part.id,anchor:zone.anchor,kind:port.kind};
+        const selected=samePort(state.pendingPort,candidate),occupied=port.kind==='mechanical'?mechanicalPortInUse(candidate):Boolean(portInUse(candidate));
+        const compatible=state.pendingPort&&!selected&&validPortPair(state.pendingPort,candidate);
+        const group=document.createElementNS(svgNS,'g');group.classList.add('interface-group');if(selected)group.classList.add('pending');
+        const region=document.createElementNS(svgNS,'polygon');region.setAttribute('points',points.map(point=>point.join(',')).join(' '));
+        region.setAttribute('class',`interface-region${selected?' pending':''}${occupied?' occupied':''}${compatible?' compatible':''}${state.pendingPort&&!selected&&!compatible?' incompatible':''}`);
+        region.setAttribute('role','button');region.setAttribute('tabindex','0');region.setAttribute('aria-label',`${partDefs[part.key].label} ${zone.name} 선택`);
+        region.dataset.key=part.key;region.dataset.id=part.id;region.dataset.anchor=zone.anchor;
+        const activate=event=>{event.preventDefault();event.stopPropagation();handlePortClick(candidate);};
+        region.addEventListener('pointerdown',activate);region.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){activate(event);}});
+        const label=document.createElementNS(svgNS,'text');label.classList.add('interface-label');label.textContent=zone.name;
+        label.setAttribute('x',Math.min(canvas.clientWidth-150,Math.max(8,points.reduce((sum,point)=>sum+point[0],0)/points.length)));
+        label.setAttribute('y',Math.max(22,points.reduce((sum,point)=>sum+point[1],0)/points.length-12));
+        group.append(region,label);overlay.append(group);
+      }
+    }
+    function handlePortClick(port){
+      if(state.pendingPort&&samePort(state.pendingPort,port)){state.pendingPort=null;setMateStatus('선택을 취소했습니다.');draw();return;}
+      const currentPart=findPart(port.key,port.id);if(!currentPart)return;
+      const occupied=port.kind==='mechanical'?mechanicalPortInUse(port):Boolean(portInUse(port));
+      if(occupied){setMateStatus(`${portLabel(currentPart,port.anchor)}는 이미 연결되어 있습니다. 브라켓 또는 케이블을 선택해 연결을 해제하세요.`);return;}
+      if(!state.pendingPort){state.pendingPort=port;setMateStatus(`${portLabel(currentPart,port.anchor)} 선택 · 밝은 윤곽선에서 연결할 상대 부위를 선택하세요.`);draw();return;}
+      if(!validPortPair(state.pendingPort,port)){setMateStatus('서로 맞지 않는 부위입니다. 체결면은 모터↔브라켓, DXL 포트는 모터↔모터 또는 모터↔OpenCR만 연결합니다.');draw();return;}
+      if(port.kind==='mechanical'){
+        const first=findPart(state.pendingPort.key,state.pendingPort.id),second=currentPart;
+        const motor=first.key==='motor'?first:second,bracket=first.key==='bracket'?first:second;
+        const motorAnchor=state.pendingPort.key==='motor'?state.pendingPort.anchor:port.anchor;
+        const bracketAnchor=state.pendingPort.key==='bracket'?state.pendingPort.anchor:port.anchor;
+        const flipY=portsFor(motor)[motorAnchor].side==='left'?180:0;
+        snapBracket(bracket,motor,motorAnchor,bracketAnchor,flipY);
+        state.pendingPort=null;selectPart('bracket',bracket.id);
+        setMateStatus(`${portLabel(motor,motorAnchor)} ↔ 브라켓 조립 위치 미리보기 · 홀 중심과 간섭은 아직 검증되지 않았습니다.`);return;
+      }
+      const cable=state.parts.connector.find(item=>!item.connection);
+      if(!cable){setMateStatus('사용 가능한 케이블이 없습니다. 부품 목록에서 케이블을 추가하세요.');return;}
+      cable.connection={a:state.pendingPort,b:port};state.pendingPort=null;selectPart('connector',cable.id);
+      setMateStatus('DXL 연결 경로 미리보기 · 실제 포트 위치와 케이블 길이는 아직 검증되지 않았습니다.');
+    }
     function projectPoint(model,point=[0,0,0]){const m=mul(state.lastFrame.proj,mul(state.lastFrame.view,model));const x=point[0],y=point[1],z=point[2];const clip=[m[0]*x+m[4]*y+m[8]*z+m[12],m[1]*x+m[5]*y+m[9]*z+m[13],m[2]*x+m[6]*y+m[10]*z+m[14],m[3]*x+m[7]*y+m[11]*z+m[15]];if(clip[3]<=0)return null;return [(clip[0]/clip[3]*.5+.5)*canvas.clientWidth,(-clip[1]/clip[3]*.5+.5)*canvas.clientHeight];}
-    function pickPart(x,y){let hit=null,best=Infinity;visibleParts().forEach(part=>{const point=projectPoint(partModel(part));if(!point)return;const distance=Math.hypot(point[0]-x,point[1]-y);const limit=part.key==='opencr'?115:90;if(distance<limit&&distance<best){best=distance;hit=part;}});return hit;}
+    function pickPart(x,y){
+      if(!state.lastFrame)return null;
+      gl.useProgram(pickProgram);gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.DITHER);
+      gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+      gl.uniformMatrix4fv(pickLoc.view,false,new Float32Array(state.lastFrame.view));
+      gl.uniformMatrix4fv(pickLoc.proj,false,new Float32Array(state.lastFrame.proj));
+      const parts=visibleParts();
+      parts.forEach((part,index)=>{const mesh=partMesh(part);gl.bindBuffer(gl.ARRAY_BUFFER,mesh.vbuf);gl.enableVertexAttribArray(pickLoc.pos);gl.vertexAttribPointer(pickLoc.pos,3,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(pickLoc.model,false,new Float32Array(partModel(part)));gl.uniform3f(pickLoc.id,(index+1)/255,0,0);gl.drawArrays(gl.TRIANGLES,0,mesh.n*3);});
+      const pixel=new Uint8Array(4);
+      gl.readPixels(Math.floor(x*canvas.width/canvas.clientWidth),Math.floor((canvas.clientHeight-y)*canvas.height/canvas.clientHeight),1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);
+      gl.enable(gl.DITHER);gl.useProgram(program);draw();
+      return parts[pixel[0]-1]||null;
+    }
     function canvasPoint(e){const r=canvas.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];}
-    let last=[0,0];canvas.addEventListener('pointerdown',e=>{const [x,y]=canvasPoint(e),hit=pickPart(x,y);if(hit)selectPart(hit.key,hit.id);state.drag={kind:hit?state.transformMode:'camera',last:[x,y]};last=[x,y];canvas.classList.add('dragging');canvas.setPointerCapture(e.pointerId);});canvas.addEventListener('pointermove',e=>{if(!state.drag)return;const [x,y]=canvasPoint(e),dx=x-last[0],dy=y-last[1];if(state.drag.kind==='camera'){state.yaw+=dx*.008;state.pitch=Math.max(-1.45,Math.min(1.45,state.pitch+dy*.008));}else{const part=selectedPart();detachPart(part);if(state.drag.kind==='move'){part.pos[0]+=dx*.01;part.pos[1]-=dy*.01;}else{part.rot[2]=Math.max(-180,Math.min(180,part.rot[2]+dx*.8));}updateSelectionControls();}last=[x,y];draw();});function finishDrag(){state.drag=null;canvas.classList.remove('dragging');}canvas.addEventListener('pointerup',finishDrag);canvas.addEventListener('pointercancel',finishDrag);canvas.addEventListener('wheel',e=>{e.preventDefault();state.distance=Math.max(1.1,Math.min(12,state.distance*(e.deltaY>0?1.08:.92)));draw();},{passive:false});
+    let last=[0,0];
+    canvas.addEventListener('pointerdown',e=>{
+      const [x,y]=canvasPoint(e),hit=pickPart(x,y);
+      if(hit&&state.pendingPort){
+        const target=(interfaces[hit.key]||[]).map(zone=>({key:hit.key,id:hit.id,anchor:zone.anchor,kind:portsFor(hit)[zone.anchor].kind})).find(candidate=>validPortPair(state.pendingPort,candidate)&&!(candidate.kind==='mechanical'?mechanicalPortInUse(candidate):portInUse(candidate)));
+        if(target){handlePortClick(target);return;}
+      }
+      if(state.pendingPort&&!hit)setMateStatus('모델 몸체를 선택하지 못했습니다. 보이는 부품 표면을 클릭하거나 시점을 바꿔 보세요.');
+      if(hit)selectPart(hit.key,hit.id);
+      state.drag={kind:hit?state.transformMode:'camera',moved:false};last=[x,y];canvas.classList.add('dragging');canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener('pointermove',e=>{
+      if(!state.drag)return;const [x,y]=canvasPoint(e),dx=x-last[0],dy=y-last[1];
+      if(Math.abs(dx)+Math.abs(dy)<.2)return;
+      if(state.drag.kind==='camera'){state.yaw+=dx*.008;state.pitch=Math.max(-1.45,Math.min(1.45,state.pitch+dy*.008));}
+      else{
+        const part=selectedPart();if(!state.drag.moved){detachPart(part);state.drag.moved=true;}
+        if(state.drag.kind==='move'){
+          const eye=[Math.cos(state.pitch)*Math.sin(state.yaw)*state.distance,Math.sin(state.pitch)*state.distance,Math.cos(state.pitch)*Math.cos(state.yaw)*state.distance];
+          const depth=Math.hypot(...part.pos.map((value,i)=>value-eye[i]));
+          const scale=2*depth*Math.tan(Math.PI/8)/canvas.clientHeight;
+          const right=[Math.cos(state.yaw),0,-Math.sin(state.yaw)];
+          const up=[-Math.sin(state.pitch)*Math.sin(state.yaw),Math.cos(state.pitch),-Math.sin(state.pitch)*Math.cos(state.yaw)];
+          part.pos=part.pos.map((value,i)=>value+(right[i]*dx-up[i]*dy)*scale);
+        }else part.rot[2]=Math.max(-180,Math.min(180,part.rot[2]+dx*.8));
+        updateSelectionControls();
+      }
+      last=[x,y];draw();
+    });
+    function finishDrag(){state.drag=null;canvas.classList.remove('dragging');}
+    canvas.addEventListener('pointerup',finishDrag);canvas.addEventListener('pointercancel',finishDrag);
+    canvas.addEventListener('wheel',e=>{e.preventDefault();state.distance=Math.max(1.1,Math.min(12,state.distance*(e.deltaY>0?1.08:.92)));draw();},{passive:false});
     $('partList').addEventListener('click',e=>{const row=e.target.closest('.part-row');if(!row)return;const key=row.dataset.key,action=e.target.dataset.action;if(action==='add')addPart(key);else if(action==='remove')removePart(key);else selectPart(key,state.parts[key][0].id);});
-    $('resetBtn').addEventListener('click',()=>{state.yaw=.55;state.pitch=.35;state.distance=5.7;draw();}); $('autoBtn').addEventListener('click',()=>{state.auto=!state.auto;$('autoBtn').textContent=state.auto?'회전 중지':'자동 회전';$('statusText').textContent=state.auto?'3D 자동 회전 중':'CAD 모델 로드 완료';if(state.auto)draw();}); $('moveMode').addEventListener('click',()=>{state.transformMode='move';updateSelectionControls();}); $('rotateMode').addEventListener('click',()=>{state.transformMode='rotate';updateSelectionControls();}); $('resetPartBtn').addEventListener('click',()=>resetPart(selectedPart())); $('resetAllBtn').addEventListener('click',resetAllParts); $('detachBtn').addEventListener('click',()=>{detachPart(selectedPart());state.pendingPort=null;updateSelectionControls();draw();});
-    [['partX',0],['partY',1],['partZ',2]].forEach(([id,index])=>$(id).addEventListener('input',e=>{const part=selectedPart();detachPart(part);part.pos[index]=Number(e.target.value);updateSelectionControls();draw();})); $('partAngle').addEventListener('input',e=>{const part=selectedPart();detachPart(part);part.rot[2]=Number(e.target.value);updateSelectionControls();draw();}); $('cameraView').addEventListener('change',e=>{const v=e.target.value;if(v==='front'){state.yaw=0;state.pitch=0;}else if(v==='side'){state.yaw=Math.PI/2;state.pitch=0;}else if(v==='top'){state.yaw=0;state.pitch=Math.PI/2-.05;}else{state.yaw=.55;state.pitch=.35;}draw();}); window.addEventListener('resize',draw); load().catch(err=>{$('statusText').textContent='모델 로딩 실패';console.error(err);});
+    $('resetBtn').addEventListener('click',()=>{state.yaw=.55;state.pitch=.35;state.distance=7;draw();}); $('autoBtn').addEventListener('click',()=>{state.auto=!state.auto;$('autoBtn').textContent=state.auto?'회전 중지':'자동 회전';$('statusText').textContent=state.auto?'3D 자동 회전 중':'CAD 모델 로드 완료';if(state.auto)draw();}); $('moveMode').addEventListener('click',()=>{state.transformMode='move';updateSelectionControls();}); $('rotateMode').addEventListener('click',()=>{state.transformMode='rotate';updateSelectionControls();}); $('resetPartBtn').addEventListener('click',()=>resetPart(selectedPart())); $('resetAllBtn').addEventListener('click',resetAllParts); $('detachBtn').addEventListener('click',()=>{detachPart(selectedPart());state.pendingPort=null;updateSelectionControls();draw();});
+    [['partX',0],['partY',1],['partZ',2]].forEach(([id,index])=>$(id).addEventListener('input',e=>{const part=selectedPart();detachPart(part);part.pos[index]=Number(e.target.value);updateSelectionControls();draw();})); $('partAngle').addEventListener('input',e=>{const part=selectedPart();detachPart(part);part.rot[2]=Number(e.target.value);updateSelectionControls();draw();}); $('cameraView').addEventListener('change',e=>{const v=e.target.value;if(v==='front'){state.yaw=0;state.pitch=0;}else if(v==='side'){state.yaw=Math.PI/2;state.pitch=0;}else if(v==='left'){state.yaw=-Math.PI/2;state.pitch=0;}else if(v==='top'){state.yaw=0;state.pitch=Math.PI/2-.05;}else{state.yaw=.55;state.pitch=.35;}draw();}); window.addEventListener('resize',draw); load().catch(err=>{$('statusText').textContent='모델 로딩 실패';console.error(err);});
   </script>
 </body>
 </html>

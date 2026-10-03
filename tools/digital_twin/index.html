@@ -112,7 +112,7 @@
     function findPart(key,id){return state.parts[key].find(part=>part.id===id)||null;}
     function rotateOffset(offset,angle){const a=angle*Math.PI/180,c=Math.cos(a),s=Math.sin(a);return [offset[0]*c-offset[1]*s,offset[0]*s+offset[1]*c,offset[2]];}
     function transformPoint(model,point){return [model[0]*point[0]+model[4]*point[1]+model[8]*point[2]+model[12],model[1]*point[0]+model[5]*point[1]+model[9]*point[2]+model[13],model[2]*point[0]+model[6]*point[1]+model[10]*point[2]+model[14]];}
-    const connectionPorts={motor:[{name:'3P-1',kind:'cable',point:[-22,0,0]},{name:'3P-2',kind:'cable',point:[22,0,0]},{name:'MOUNT',kind:'mechanical',point:[0,0,0]}],bracket:[{name:'MOUNT',kind:'mechanical',point:[0,0,0]}],opencr:[{name:'TTL-1',kind:'cable',point:[37,-38,0]},{name:'TTL-2',kind:'cable',point:[0,-38,0]},{name:'TTL-3',kind:'cable',point:[-37,-38,0]}]};
+    const connectionPorts={motor:[{name:'3P-1',kind:'cable',point:[16,11,0]},{name:'3P-2',kind:'cable',point:[-16,11,0]},{name:'MOUNT',kind:'mechanical',point:[18,-9,0]}],bracket:[{name:'MOUNT',kind:'mechanical',point:[-11,-9,0]}],opencr:[{name:'TTL-1',kind:'cable',point:[37,-38,0]},{name:'TTL-2',kind:'cable',point:[0,-38,0]},{name:'TTL-3',kind:'cable',point:[-37,-38,0]}]};
     function portsFor(part){return connectionPorts[part.key]||[];}
     function partAnchor(part,index){const port=portsFor(part)[index]||portsFor(part)[0];return transformPoint(partModel(part),port?port.point:[0,0,0]);}
     function cablePortIndexes(part){return portsFor(part).map((port,index)=>port.kind==='cable'?index:null).filter(index=>index!==null);}

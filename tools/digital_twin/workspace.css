@@ -1,0 +1,126 @@
+/* The scene is the work surface; controls are contextual overlays, not a second page. */
+html, body { height:100%; }
+body { min-width:0; overflow:hidden; background:#091119; }
+header { height:52px; padding:9px 18px; position:relative; z-index:5; border-color:#29404c; }
+header h1 { font-size:15px; letter-spacing:.015em; }
+header .subtitle { display:none; }
+header .status { max-width:42vw; font-size:11px; }
+main { display:block; padding:0; height:calc(100vh - 52px); min-height:440px; }
+.stage-panel { position:relative; height:100%; overflow:hidden; border:0; border-radius:0; background:#0b1720; }
+.stage-panel .panel-head { position:absolute; z-index:7; top:14px; left:50%; transform:translateX(-50%); padding:5px; border:1px solid #39515f; border-radius:12px; background:rgba(16,30,40,.94); box-shadow:0 14px 32px #0007; white-space:nowrap; }
+.workspace-modes { display:flex; gap:3px; }
+.workspace-modes button { border:0; padding:9px 12px; background:transparent; font-size:12px; }
+.workspace-modes button.active { color:#071e20; background:var(--cyan); font-weight:700; }
+.workspace-actions { margin-left:10px; flex-wrap:nowrap; }
+.workspace-actions button { padding:8px 10px; font-size:12px; }
+.workspace-actions select { padding:7px 8px; font-size:11px; max-width:102px; }
+.workspace-actions button:disabled { opacity:.35; cursor:not-allowed; }
+.stage-panel .viewport { height:100%; background:radial-gradient(circle at 52% 44%,#203a45 0%,#11242f 42%,#08131b 100%); }
+.stage-panel .viewport canvas { cursor:grab; }
+.stage-panel .viewport canvas.dragging { cursor:grabbing; }
+.badge { top:auto; bottom:12px; left:16px; font-size:10px; }
+.fit-warning { color:#ffd6a4; border-left:3px solid #ef9c48; padding-left:8px; }
+.stage-status { top:auto; bottom:78px; left:278px; right:314px; width:auto; max-width:none; transform:none; text-align:center; font-size:12px; box-shadow:0 8px 24px #0007; }
+.viewport-hint { left:278px; bottom:12px; max-width:calc(100vw - 600px); font-size:11px; background:rgba(13,26,35,.78); }
+.viewport-nav { left:auto; right:16px; top:78px; max-width:none; }
+.motor-id-overlay { display:none; }
+.axis-guide { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); z-index:6; width:min(500px,calc(100vw - 620px)); padding:0; border:0; gap:6px; pointer-events:none; }
+.axis-card { padding:6px 8px; background:rgba(11,27,35,.85); border-color:#476575; }
+.axis-card p { display:none; }
+.axis-card strong { font-size:11px; }
+.axis-card small { font-size:10px; }
+.axis-guide-action { display:none; }
+.controls { position:absolute; z-index:7; top:78px; right:16px; width:282px; max-height:calc(100% - 146px); overflow:auto; display:none; padding:0; background:rgba(15,29,39,.95); border:1px solid #39515f; border-radius:12px; box-shadow:0 16px 36px #0007; scrollbar-width:thin; }
+body.inspector-open .controls { display:block; }
+.controls .editor { border:0; background:none; padding:14px; }
+.controls .editor-head { flex-wrap:wrap; }
+.controls #closeInspectorBtn { margin-left:auto; padding:0 6px; border:0; background:transparent; color:#b5c8d0; font-size:20px; line-height:1; }
+.controls #selectionValue { flex-basis:100%; }
+.controls .selection { max-width:100%; word-break:keep-all; }
+.controls .mode-buttons { gap:5px; }
+.controls .row { grid-template-columns:78px 1fr 48px; gap:5px; margin-top:8px; }
+.controls .row label { font-size:11px; }
+.controls .row input[type=number] { width:100%; min-width:0; padding:6px; color:var(--text); background:#0b1b24; border:1px solid #49606e; border-radius:6px; font:inherit; }
+.controls .row .value { font-size:10px; }
+.precise-transform { margin-top:3px; border:1px solid #36505d; border-radius:8px; padding:8px; }
+.precise-transform summary { cursor:pointer; color:#b9d1d8; font-size:11px; }
+.precise-transform .editor-note { margin-top:8px; }
+.controls > .row { display:none; }
+.controls .joint-turn-row { display:none; }
+.connected-pose { display:grid; gap:7px; padding:10px; border:1px solid #466c69; border-radius:9px; background:#102b2d; font-size:11px; }
+.connected-pose strong { color:#d9fff3; font-size:12px; }
+.connected-pose p,.connected-pose small { color:#abcac6; }
+.connected-pose-actions { display:grid; grid-template-columns:1fr auto 1fr; gap:5px; }
+.connected-pose-actions button { min-height:34px; padding:5px; font-size:10px; }
+.connected-pose-actions button:hover { background:#1d5a52; }
+.controls #axisIdEditor { display:none; }
+.bracket-contacts { margin:10px 0; padding:10px; border:1px solid #36505d; border-radius:8px; background:#10232d; font-size:11px; }
+.bracket-contacts strong { display:block; margin-bottom:6px; color:#d9f7ef; }
+.contact-row { padding:4px 0; color:#9cb3bd; }
+.contact-row.connected { color:#70e0c5; }
+.controls .editor > .editor-note:last-child { display:none; }
+.controls .editor > .toolbar { margin-top:3px; }
+aside.panel { position:absolute; z-index:7; top:130px; left:16px; width:244px; max-height:calc(100% - 198px); overflow:auto; border:1px solid #39515f; border-radius:12px; background:rgba(15,29,39,.95); box-shadow:0 16px 36px #0007; scrollbar-width:thin; }
+aside.panel .section { padding:12px; }
+aside.panel .section p, aside.panel .note { font-size:11px; }
+aside.panel .part-row { grid-template-columns:1fr auto auto auto; gap:3px; }
+aside.panel .part-name { font-size:11px; }
+.example-assembly { width:100%; margin-top:12px; border-color:#4fa18e; color:#d6fff4; background:#164239; font-size:11px; font-weight:700; }
+aside.panel > :not(:first-child) { display:none; }
+.gizmo-overlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
+.gizmo-axis { pointer-events:stroke; fill:none; stroke-width:24px; stroke-linecap:round; opacity:.93; cursor:move; }
+.gizmo-axis-core { pointer-events:none; fill:none; stroke-width:4px; stroke-linecap:round; }
+.gizmo-handle { pointer-events:all; stroke:#fff; stroke-width:1.5px; cursor:move; }
+.gizmo-rotate { pointer-events:stroke; fill:none; stroke-width:24px; opacity:.86; cursor:ew-resize; }
+.gizmo-rotate-core { pointer-events:none; fill:none; stroke-width:3px; }
+.gizmo-axis:hover,.gizmo-rotate:hover { opacity:1; filter:drop-shadow(0 0 5px white); }
+.gizmo-label { pointer-events:none; fill:#fff; font-size:11px; font-weight:800; paint-order:stroke; stroke:#08131b; stroke-width:3px; }
+body[data-workspace-mode=wiring] .controls .editor > :not(.editor-head):not(#mateStatus) { display:none; }
+body[data-workspace-mode=wiring] aside.panel > :first-child { display:block; }
+body[data-workspace-mode=motion] .controls .joint-turn-row { display:grid; }
+body:not([data-workspace-mode=motion]) .connected-pose { display:none; }
+body[data-workspace-mode=motion] .controls #axisIdEditor:not([hidden]) { display:block; }
+body[data-workspace-mode=assembly] .controls #bracketContactStatus:not([hidden]) { display:block; }
+body[data-workspace-mode=motion] .controls .mode-buttons,
+body[data-workspace-mode=motion] .controls .precise-transform,
+body[data-workspace-mode=motion] .controls #bracketRootEditor,
+body[data-workspace-mode=motion] .controls > .row { display:none; }
+body[data-workspace-mode=motion] .axis-guide { display:grid; }
+body[data-workspace-mode=status] aside.panel { width:360px; }
+body[data-workspace-mode=status] aside.panel > :first-child { display:none; }
+body[data-workspace-mode=status] aside.panel > :nth-child(2),
+body[data-workspace-mode=status] aside.panel > :nth-child(3),
+body[data-workspace-mode=status] aside.panel > :nth-child(4),
+body[data-workspace-mode=status] aside.panel > .reference-details,
+body[data-workspace-mode=status] aside.panel > .note { display:block; }
+body[data-workspace-mode=status] .controls { display:none; }
+body[data-workspace-mode=status] .axis-guide { display:none; }
+body[data-workspace-mode=assembly] .axis-guide,
+body[data-workspace-mode=wiring] .axis-guide { display:none; }
+body[data-workspace-mode=assembly] .controls .joint-turn-row { display:none; }
+body[data-workspace-mode=status] .motor-id-overlay { display:grid; top:78px; right:16px; }
+button:focus-visible, select:focus-visible, summary:focus-visible, input:focus-visible, .gizmo-axis:focus-visible, .gizmo-rotate:focus-visible { outline:2px solid #fff; outline-offset:2px; }
+@media(max-width:980px) {
+  .stage-panel .panel-head { left:8px; transform:none; right:8px; justify-content:space-between; }
+  .workspace-modes button { padding:7px; }
+  .workspace-actions { gap:3px; margin-left:4px; }
+  .workspace-actions #autoBtn { display:none; }
+  aside.panel { top:124px; width:208px; }
+  .controls { top:124px; width:235px; }
+  .viewport-hint { display:none; }
+  .stage-status { left:226px; right:260px; }
+  .axis-guide { display:none !important; }
+}
+@media(max-width:700px) {
+  header { height:48px; padding:8px; }
+  header .status { display:none; }
+  main { height:calc(100vh - 48px); }
+  .stage-panel .panel-head { top:6px; left:6px; right:6px; padding:3px; overflow:auto; }
+  .workspace-modes button { font-size:10px; }
+  aside.panel { top:62px; left:6px; bottom:auto; width:170px; max-height:35vh; }
+  .controls { top:auto; right:6px; left:6px; bottom:46px; width:auto; max-height:28vh; }
+  body[data-workspace-mode=status] aside.panel { width:calc(100vw - 12px); max-height:70vh; }
+  body[data-workspace-mode=status] .motor-id-overlay { display:none; }
+  .stage-status { bottom:calc(28vh + 55px); left:6px; right:6px; transform:none; max-width:none; }
+  .badge { display:none; }
+}

@@ -35,10 +35,23 @@ def recent_motor_probe(bus: dict) -> dict | None:
         if payload["port"] != bus["port"] or float(payload["protocol"]) != float(bus["protocol"]):
             return None
         age = max(0.0, now - checked_at)
-        ids = sorted({int(item["id"]) for item in payload["results"]
-                      if int(item["baudrate"]) == int(bus["baudrate"])})
+        matching = [item for item in payload["results"]
+                    if int(item["baudrate"]) == int(bus["baudrate"])]
+        ids = sorted({int(item["id"]) for item in matching})
+        motor_states = []
+        for item in matching:
+            torque = item.get("torque_enable")
+            position = item.get("present_position")
+            error = item.get("hw_error")
+            motor_states.append({
+                "id": int(item["id"]),
+                "torque_enable": torque if type(torque) is int and torque in (0, 1) else None,
+                "present_position": position if type(position) is int else None,
+                "hw_error": error if type(error) is int and 0 <= error <= 255 else None,
+            })
         return {"checked_at": checked_at, "age_seconds": round(age, 1),
                 "fresh": age <= 15, "responding_ids": ids,
+                "motor_states": motor_states,
                 "source": "manual_scan"}
     except (OSError, KeyError, ValueError, TypeError, OverflowError):
         return None

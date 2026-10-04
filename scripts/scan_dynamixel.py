@@ -141,6 +141,7 @@ def describe(packet, port, motor_id, model_number):
     if fields["temperature"] is not None:
         print(f"        온도          : {fields['temperature']} °C")
     print()
+    return fields
 
 
 def write_status_file(path, *, port, protocol, results):
@@ -197,9 +198,13 @@ def main():
             print(f"  {len(found)}개 응답\n")
             for motor_id in sorted(found):
                 model_number = found[motor_id][0]
+                fields = describe(packet, port, motor_id, model_number)
                 results.append({"id": motor_id, "baudrate": baud,
-                                "model_number": model_number})
-                describe(packet, port, motor_id, model_number)
+                                "model_number": model_number,
+                                "torque_enable": fields["torque_enable"],
+                                "present_position": (to_signed32(fields["present_position"])
+                                                     if fields["present_position"] is not None else None),
+                                "hw_error": fields["hw_error"]})
                 total += 1
     finally:
         port.closePort()

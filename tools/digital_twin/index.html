@@ -123,7 +123,7 @@
       bracket: { label:'EF25-F14 브라켓', mesh:'bracket', color:[.84,.42,.16], base:[1.9,0,0] },
       connector: { label:'DXL TTL 케이블', mesh:'connector', color:[.18,.23,.29], base:[.3,-1.6,1.2] },
       opencr: { label:'OpenCR REVH', mesh:'opencr', color:[.22,.62,.42], base:[-3.2,-1.6,-2.3], rot:[-90,0,0] },
-      laptop: { label:'삼성 노트북 (개략)', mesh:'laptop', color:[.35,.40,.48], base:[0,-1.6,-6.4] }
+      laptop: { label:'노트북', mesh:'laptop', color:[.35,.40,.48], base:[0,-1.6,-6.4] }
     };
     function makePart(key,index){const d=partDefs[key];return {id:`${key}-${index+1}`,key,pos:[d.base[0]+(index*.45),d.base[1]+(index*.25),d.base[2]],rot:d.rot?[...d.rot]:[0,0,0],stretch:1,mate:null,connection:null};}
     const state = { motor:null, bracket:null, connector:null, opencr:null, laptop:null, usbWire:null, workspace:null, yaw:.55, pitch:.35, distance:8, auto:false, transformMode:'move', selectedKey:'motor', selectedId:'motor-1', pendingPort:null, parts:{motor:[makePart('motor',0)],bracket:[makePart('bracket',0)],connector:[makePart('connector',0)],opencr:[makePart('opencr',0)],laptop:[makePart('laptop',0)]}, drag:null, lastFrame:null };

@@ -10,6 +10,7 @@ models/**/*.task
 data/logs/
 data/runs/
 data/samples/
+data/connection_status.json
 
 # 개인 장비·실험 메모 — 공유하지 않음
 docs/private/

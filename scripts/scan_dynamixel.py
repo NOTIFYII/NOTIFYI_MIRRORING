@@ -10,7 +10,9 @@
 """
 
 import argparse
+import json
 import sys
+import time
 from pathlib import Path
 
 VENV_HINT = "~/dynamixel-venv/bin/python"
@@ -141,12 +143,29 @@ def describe(packet, port, motor_id, model_number):
     print()
 
 
+def write_status_file(path, *, port, protocol, results):
+    """수동 스캔 결과를 화면용 스냅샷으로 저장한다. 모터에는 쓰지 않는다."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "checked_at": time.time(),
+        "port": port,
+        "protocol": protocol,
+        "results": results,
+    }
+    temporary = target.with_name(f".{target.name}.tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    temporary.replace(target)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Dynamixel ID 스캔 (읽기 전용)")
     parser.add_argument("--port", default=DEFAULT_PORT)
     parser.add_argument("--baud", type=int, action="append",
                         help="검사할 baudrate. 반복 지정 가능. 생략하면 전체 스윕")
     parser.add_argument("--proto", type=float, default=2.0, choices=[1.0, 2.0])
+    parser.add_argument("--status-file", type=Path,
+                        help="스캔 결과를 JSON으로 저장. 메인 제어가 중지된 상태에서만 사용")
     args = parser.parse_args()
 
     bauds = args.baud or list(BAUD_CANDIDATES)
@@ -163,6 +182,7 @@ def main():
         sys.exit(f"{args.port} 포트를 열 수 없습니다. U2D2 연결을 확인하세요.")
 
     total = 0
+    results = []
     try:
         for baud in bauds:
             print(f"[{baud} bps] 스캔 중...", flush=True)
@@ -177,10 +197,16 @@ def main():
             print(f"  {len(found)}개 응답\n")
             for motor_id in sorted(found):
                 model_number = found[motor_id][0]
+                results.append({"id": motor_id, "baudrate": baud,
+                                "model_number": model_number})
                 describe(packet, port, motor_id, model_number)
                 total += 1
     finally:
         port.closePort()
+
+    if args.status_file:
+        write_status_file(args.status_file, port=args.port,
+                          protocol=args.proto, results=results)
 
     if total == 0:
         print("응답한 모터가 없습니다. 전원(SMPS), 데이지체인 배선, U2D2 연결을 확인하세요.")

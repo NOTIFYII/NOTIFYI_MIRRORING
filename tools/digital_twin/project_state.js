@@ -3,7 +3,8 @@
   'use strict';
 
   const FORMAT = 'notifyi-digital-twin';
-  const VERSION = 1;
+  const VERSION = 2;
+  const LEGACY_DESK_Y_OFFSET = 1.58;
   const TYPES = ['motor', 'bracket', 'connector', 'opencr', 'laptop'];
   const FACES = new Set(['front', 'back', 'right', 'left', 'top', 'bottom']);
   const TTL_PORTS = { motor: 2, opencr: 3 };
@@ -37,7 +38,7 @@
 
   function validate(document) {
     const source = object(document, '프로젝트');
-    if (source.format !== FORMAT || source.version !== VERSION) invalid('지원하지 않는 프로젝트 형식 또는 버전입니다.');
+    if (source.format !== FORMAT || (source.version !== 1 && source.version !== VERSION)) invalid('지원하지 않는 프로젝트 형식 또는 버전입니다.');
     const input = object(source.parts, '부품 목록');
     const parts = {};
     for (const key of TYPES) {
@@ -46,7 +47,9 @@
       parts[key] = list.map((item, index) => {
         const part = object(item, `${key} #${index + 1}`), id = `${key}-${index + 1}`;
         if (part.id !== id) invalid(`${key} ID 순서가 올바르지 않습니다.`);
-        return { id, pos:vector(part.pos, `${id} 위치`, 100), rot:vector(part.rot, `${id} 회전`, 360) };
+        const pos = vector(part.pos, `${id} 위치`, 100);
+        if (source.version === 1) pos[1] = Number((pos[1] + LEGACY_DESK_Y_OFFSET).toFixed(10));
+        return { id, pos, rot:vector(part.rot, `${id} 회전`, 360) };
       });
     }
     const ids = Object.fromEntries(TYPES.map(key => [key, new Set(parts[key].map(part => part.id))]));

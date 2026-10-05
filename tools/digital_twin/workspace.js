@@ -1,16 +1,17 @@
     const canvas = document.getElementById('gl');
     const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
     const partDefs = {
-      motor: { label:'2XL-430 모터', mesh:'motor', color:[.32,.56,.64], base:[0,0,0] },
-      bracket: { label:'EF25-F14 브라켓', mesh:'bracket', color:[.84,.42,.16], base:[1.9,0,0] },
-      connector: { label:'DXL TTL 케이블', mesh:'connector', color:[.18,.23,.29], base:[.3,-1.6,1.2] },
-      opencr: { label:'OpenCR REVH', mesh:'opencr', color:[.22,.62,.42], base:[-3.2,-1.6,-2.3], rot:[-90,0,0] },
-      laptop: { label:'노트북', mesh:'laptop', color:[.35,.40,.48], base:[0,-1.6,-6.4] }
+      motor: { label:'2XL-430 모터', mesh:'motor', color:[.32,.56,.64], base:[0,.58,1.7] },
+      bracket: { label:'EF25-F14 브라켓', mesh:'bracket', color:[.84,.42,.16], base:[1.9,.58,1.7] },
+      connector: { label:'DXL TTL 케이블', mesh:'connector', color:[.18,.23,.29], base:[.3,.08,.9] },
+      opencr: { label:'OpenCR REVH', mesh:'opencr', color:[.22,.62,.42], base:[-3.6,.03,-2.4], rot:[-90,0,0] },
+      laptop: { label:'노트북', mesh:'laptop', color:[.35,.40,.48], base:[2,.03,-5.5] }
     };
     function makePart(key,index){const d=partDefs[key];return {id:`${key}-${index+1}`,key,pos:[d.base[0]+(index*.65),d.base[1]+(index*.35),d.base[2]],rot:d.rot?[...d.rot]:[0,0,0],stretch:1,rootSide:key==='bracket'?'plate':null,mates:key==='bracket'?{fork:null,plate:null}:null,joints:key==='motor'?{A:0,B:0}:null,axisIds:key==='motor'?{A:null,B:null}:null,assemblyRotation:null,connection:null};}
-    const state = { motor:null, bracket:null, connector:null, opencr:null, laptop:null, usbWire:null, rotor:null, workspace:null, yaw:.55, pitch:.35, distance:8, cameraTarget:[0,0,0], viewMode:'part', workspaceMode:'assembly', auto:false, transformMode:'move', selectedKey:'motor', selectedId:'motor-1', pendingPort:null, parts:{motor:[makePart('motor',0)],bracket:[makePart('bracket',0)],connector:[makePart('connector',0)],opencr:[makePart('opencr',0)],laptop:[makePart('laptop',0)]}, drag:null, lastFrame:null };
+    const state = { motor:null, bracket:null, connector:null, opencr:null, laptop:null, desk:null, usbWire:null, rotor:null, workspace:null, yaw:.55, pitch:.35, distance:8, cameraTarget:[0,0,0], viewMode:'part', workspaceMode:'assembly', assemblyTool:'connect', auto:false, transformMode:'move', selectedKey:'motor', selectedId:'motor-1', pendingPort:null, parts:{motor:[makePart('motor',0)],bracket:[makePart('bracket',0)],connector:[makePart('connector',0)],opencr:[makePart('opencr',0)],laptop:[makePart('laptop',0)]}, drag:null, lastFrame:null };
     const $ = id => document.getElementById(id);
-    const PROJECT_STORAGE_KEY = 'notifyi.digitalTwin.project.v1';
+    const PROJECT_STORAGE_KEY = 'notifyi.digitalTwin.project.v2';
+    const LEGACY_PROJECT_STORAGE_KEY = 'notifyi.digitalTwin.project.v1';
     let persistenceReady=false, autosaveBlocked=false, lastSavedSnapshot=null, saveTimer=null;
     const history={past:[],future:[],current:null,restoring:false};
     function projectSnapshot(){return JSON.stringify(NotifyiProjectState.capture(state.parts));}
@@ -38,7 +39,7 @@
     }
     function restoreProject(){
       let saved;
-      try{saved=localStorage.getItem(PROJECT_STORAGE_KEY);}
+      try{saved=localStorage.getItem(PROJECT_STORAGE_KEY)||localStorage.getItem(LEGACY_PROJECT_STORAGE_KEY);}
       catch{autosaveBlocked=true;showProjectStatus('브라우저 저장 공간을 사용할 수 없습니다. JSON 파일로 보관하세요.');return;}
       if(saved){
         try{const document=NotifyiProjectState.decode(saved);applyProject(document);lastSavedSnapshot=JSON.stringify(document);showProjectStatus('이 브라우저의 마지막 작업을 복원했습니다.');if(document.parts.bracket.some(part=>part.rootSide==='fork'&&(part.mates.fork||part.mates.plate)))setMateStatus('이전 프로젝트의 축 고정 방향을 그대로 복원했습니다. 사진 속 조립과 방향이 다를 수 있습니다.');}
@@ -112,10 +113,19 @@
     function addTubeSegment(verts,norms,a,b,radius,segments=10){const d=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],length=Math.hypot(...d);if(!length)return;const direction=d.map(value=>value/length),helper=Math.abs(direction[1])<.85?[0,1,0]:[1,0,0];let axisU=[direction[1]*helper[2]-direction[2]*helper[1],direction[2]*helper[0]-direction[0]*helper[2],direction[0]*helper[1]-direction[1]*helper[0]];const uLength=Math.hypot(...axisU);axisU=axisU.map(value=>value/uLength);const axisV=[direction[1]*axisU[2]-direction[2]*axisU[1],direction[2]*axisU[0]-direction[0]*axisU[2],direction[0]*axisU[1]-direction[1]*axisU[0]];for(let i=0;i<segments;i++){const a0=i*Math.PI*2/segments,a1=(i+1)*Math.PI*2/segments,c0=Math.cos(a0),s0=Math.sin(a0),c1=Math.cos(a1),s1=Math.sin(a1);const radial0=[axisU[0]*c0+axisV[0]*s0,axisU[1]*c0+axisV[1]*s0,axisU[2]*c0+axisV[2]*s0],radial1=[axisU[0]*c1+axisV[0]*s1,axisU[1]*c1+axisV[1]*s1,axisU[2]*c1+axisV[2]*s1];const p0=[a[0]+radial0[0]*radius,a[1]+radial0[1]*radius,a[2]+radial0[2]*radius],p1=[b[0]+radial0[0]*radius,b[1]+radial0[1]*radius,b[2]+radial0[2]*radius],p2=[b[0]+radial1[0]*radius,b[1]+radial1[1]*radius,b[2]+radial1[2]*radius],p3=[a[0]+radial1[0]*radius,a[1]+radial1[1]*radius,a[2]+radial1[2]*radius],normal=[(radial0[0]+radial1[0])*.5,(radial0[1]+radial1[1])*.5,(radial0[2]+radial1[2])*.5];addTri(verts,norms,p0,p1,p2,normal);addTri(verts,norms,p0,p2,p3,normal);}}
     function createConnectorMesh(){const verts=[],norms=[],path=[[-18,0,0],[-12,-1.5,1.8],[-4,-2.4,2.4],[4,-2.4,2.4],[12,-1.5,1.8],[18,0,0]];addTubeSegment(verts,norms,[-20,0,0],[-17,0,0],2.1,12);for(let i=0;i<path.length-1;i++)addTubeSegment(verts,norms,path[i],path[i+1],1.2,12);addTubeSegment(verts,norms,[17,0,0],[20,0,0],2.1,12);addBox(verts,norms,[-20,0,0],[2.8,3.2,2.6]);addBox(verts,norms,[20,0,0],[2.8,3.2,2.6]);[-1.25,0,1.25].forEach(offset=>{addTubeSegment(verts,norms,[-22.9,offset,0],[-20.8,offset,0],.42,8);addTubeSegment(verts,norms,[20.8,offset,0],[22.9,offset,0],.42,8);});const model={verts:new Float32Array(verts),norms:new Float32Array(norms),n:verts.length/9,radius:Math.hypot(23,3.5,2.5),center:[0,0,0]};model.vbuf=createBuffer(model.verts);model.nbuf=createBuffer(model.norms);return model;}
     function makeProceduralMesh(verts,norms){const model={verts:new Float32Array(verts),norms:new Float32Array(norms),n:verts.length/9};model.vbuf=createBuffer(model.verts);model.nbuf=createBuffer(model.norms);return model;}
+    function boxMesh(center,half){const verts=[],norms=[];addBox(verts,norms,center,half);return makeProceduralMesh(verts,norms);}
+    function createDeskMeshes(){const width=9,depth=7.5,centerZ=-2;return [
+      {mesh:boxMesh([0,-.25,centerZ],[width,.25,depth]),color:[.51,.42,.34]},
+      {mesh:boxMesh([0,-.52,centerZ+depth-.15],[width,.11,.16]),color:[.24,.25,.24]},
+      {mesh:boxMesh([0,-.52,centerZ-depth+.15],[width,.11,.16]),color:[.24,.25,.24]},
+      {mesh:boxMesh([-width+.15,-.52,centerZ],[.15,.11,depth]),color:[.24,.25,.24]},
+      {mesh:boxMesh([width-.15,-.52,centerZ],[.15,.11,depth]),color:[.24,.25,.24]},
+      ...[-width+.7,width-.7].flatMap(x=>[centerZ-depth+1,centerZ+depth-1].map(z=>({mesh:boxMesh([x,-2.87,z],[.25,2.4,.25]),color:[.18,.20,.20]})))
+    ];}
     function createLaptopMesh(){const verts=[],norms=[];addBox(verts,norms,[0,0,0],[42,1.4,25]);addBox(verts,norms,[0,23,-24],[42,23,1.2]);addBox(verts,norms,[0,1.9,-22],[40,.7,1.2]);return makeProceduralMesh(verts,norms);}
     function createUsbWireMesh(){const verts=[],norms=[];addTubeSegment(verts,norms,[-20,0,0],[20,0,0],.85,12);return makeProceduralMesh(verts,norms);}
     function createRotorMesh(){const verts=[],norms=[];addBox(verts,norms,[4.5,0,0],[4.5,.8,.5]);addBox(verts,norms,[9,0,0],[1,1.6,.5]);return makeProceduralMesh(verts,norms);}
-    async function load(){const [motor,bracket,opencr]=await Promise.all([loadMesh('./assets/2XL-430.step.stl'),loadMesh('./assets/EF25-F14.stp.stl'),loadMesh('./assets/OpenCR_REVH.stl')]);state.motor=motor;state.bracket=bracket;state.opencr=opencr;state.connector=createConnectorMesh();state.laptop=createLaptopMesh();state.usbWire=createUsbWireMesh();state.rotor=createRotorMesh();$('statusText').textContent='STEP 부분 검토 완료 · 실물 체결 미검증';$('statusDot').classList.add('live');restoreProject();focusAssembly();renderPartList();updateSelectionControls();draw();loadWorkspaceStatus();}
+    async function load(){const [motor,bracket,opencr]=await Promise.all([loadMesh('./assets/2XL-430.step.stl'),loadMesh('./assets/EF25-F14.stp.stl'),loadMesh('./assets/OpenCR_REVH.stl')]);state.motor=motor;state.bracket=bracket;state.opencr=opencr;state.connector=createConnectorMesh();state.laptop=createLaptopMesh();state.desk=createDeskMeshes();state.usbWire=createUsbWireMesh();state.rotor=createRotorMesh();$('statusText').textContent='STEP 부분 검토 완료 · 실물 체결 미검증';$('statusDot').classList.add('live');restoreProject();focusAssembly();renderPartList();updateSelectionControls();requestAnimationFrame(draw);loadWorkspaceStatus();}
     const configuredJoints=[
       {id:2,name:'waist_lower_yaw',label:'허리 아래 · 좌우',zero_position:1034},
       {id:3,name:'waist_lower_pitch',label:'허리 아래 · 앞뒤',zero_position:3059},
@@ -212,11 +222,21 @@
     function resize(){const dpr=Math.min(2,devicePixelRatio||1),w=canvas.clientWidth*dpr,h=canvas.clientHeight*dpr;if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}}
     function drawMesh(mesh,model,color){gl.bindBuffer(gl.ARRAY_BUFFER,mesh.vbuf);gl.enableVertexAttribArray(loc.pos);gl.vertexAttribPointer(loc.pos,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,mesh.nbuf);gl.enableVertexAttribArray(loc.normal);gl.vertexAttribPointer(loc.normal,3,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(loc.model,false,new Float32Array(model));gl.uniform3f(loc.color,color[0],color[1],color[2]);gl.drawArrays(gl.TRIANGLES,0,mesh.n*3);}
     function eulerRotation(rot){return mul(rz(rot[2]*Math.PI/180),mul(ry(rot[1]*Math.PI/180),rx(rot[0]*Math.PI/180)));}
+    // Preview-only viewport limits. These are not DYNAMIXEL, collision, or per-ID operating limits.
+    const previewJointBounds={A:{min:-90,max:90},B:{min:-90,max:90}};
+    function clampPreviewJoint(axis,angle){const bounds=previewJointBounds[axis];return Math.max(bounds.min,Math.min(bounds.max,angle));}
     function partRotation(part){return part.assemblyRotation||eulerRotation(part.rot);}
-    function partModel(part){const unit=1/state.motor.radius,stretch=part.key==='connector'?part.stretch||1:1;return mul(translate(part.pos[0],part.pos[1],part.pos[2]),mul(partRotation(part),scale(unit*stretch,unit,unit)));}
+    function partModel(part){const unit=(part.key==='laptop'?2.1:1)/state.motor.radius,stretch=part.key==='connector'?part.stretch||1:1;return mul(translate(part.pos[0],part.pos[1],part.pos[2]),mul(partRotation(part),scale(unit*stretch,unit,unit)));}
     function partMesh(part){return state[partDefs[part.key].mesh];}
     function partColor(part){const c=part.key==='connector'&&part.connection?[.26,.50,.82]:partDefs[part.key].color;if(part.id===state.selectedId&&part.key===state.selectedKey)return [Math.min(1,c[0]+.22),Math.min(1,c[1]+.2),Math.min(1,c[2]+.2)];return c;}
-    function visibleParts(){return Object.keys(state.parts).flatMap(key=>state.parts[key]);}
+    function visibleParts(){return Object.keys(state.parts).flatMap(key=>state.parts[key].filter((part,index)=>{
+      if(key!=='bracket'&&key!=='connector')return true;
+      if(state.selectedKey===key&&state.selectedId===part.id)return true;
+      if(key==='bracket'&&(part.mates?.fork||part.mates?.plate))return true;
+      if(key==='connector'&&part.connection)return true;
+      const initial=makePart(key,index);
+      return part.pos.some((value,axis)=>value!==initial.pos[axis])||part.rot.some((value,axis)=>value!==initial.rot[axis]);
+    }));}
     function findPart(key,id){return state.parts[key].find(part=>part.id===id)||null;}
     function rotateOffset(offset,angle){const a=angle*Math.PI/180,c=Math.cos(a),s=Math.sin(a);return [offset[0]*c-offset[1]*s,offset[0]*s+offset[1]*c,offset[2]];}
     function transformPoint(model,point){return [model[0]*point[0]+model[4]*point[1]+model[8]*point[2]+model[12],model[1]*point[0]+model[5]*point[1]+model[9]*point[2]+model[13],model[2]*point[0]+model[6]*point[1]+model[10]*point[2]+model[14]];}
@@ -363,27 +383,34 @@
     function cameraBasis(){return {right:[Math.cos(state.yaw),0,-Math.sin(state.yaw)],up:[-Math.sin(state.pitch)*Math.sin(state.yaw),Math.cos(state.pitch),-Math.sin(state.pitch)*Math.cos(state.yaw)]};}
     function panCamera(dx,dy){const {right,up}=cameraBasis(),scale=2*state.distance*Math.tan(Math.PI/8)/canvas.clientHeight;state.cameraTarget=state.cameraTarget.map((value,i)=>value-(right[i]*dx-up[i]*dy)*scale);}
     function setViewMode(mode){state.viewMode=mode;document.querySelectorAll('[data-view-mode]').forEach(button=>{const active=button.dataset.viewMode===mode;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});}
+    function setAssemblyTool(tool){
+      if(tool!=='connect'&&tool!=='place')return;
+      state.assemblyTool=tool;state.pendingPort=null;
+      document.querySelectorAll('[data-assembly-tool]').forEach(button=>{const active=button.dataset.assemblyTool===tool;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
+      setMateStatus(tool==='connect'?'체결: 모터 회전축을 선택하거나 브라켓 판을 선택해 본체 체결면을 표시하세요.':'배치·회전: 선택한 부품의 핸들을 드래그하세요. 체결 지점은 체결 도구에서 표시됩니다.');draw();
+    }
     function focusAssembly(){
       if(!state.motor)return;
       updateMatedParts();const motors=state.parts.motor;
       const center=[0,1,2].map(axis=>motors.reduce((sum,motor)=>sum+motor.pos[axis],0)/motors.length);
       const radius=Math.max(1.6,...motors.map(motor=>Math.hypot(...motor.pos.map((value,i)=>value-center[i]))+1.15));
-      state.cameraTarget=center;state.distance=Math.min(25,Math.max(9.5,radius*2.9));
+      state.cameraTarget=[center[0],center[1],center[2]-2];state.distance=Math.min(25,Math.max(17,radius*2.9));
     }
     function setWorkspaceMode(mode){
       if(!['assembly','wiring','motion','status'].includes(mode))return;
       state.workspaceMode=mode;state.pendingPort=null;document.body.dataset.workspaceMode=mode;
       if(mode==='wiring'){state.yaw=-Math.PI*3/4;state.pitch=.25;$('cameraView').value='sockets';}
       document.querySelectorAll('[data-workspace-mode]').forEach(button=>{const active=button.dataset.workspaceMode===mode;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
-      const prompts={assembly:'기준 모터를 회전하면 체결된 조립체 전체가 따라 움직입니다. 상대 모터만 눕히려면 동작 확인으로 이동하세요.',wiring:'USB 선은 별도입니다. OpenCR 또는 모터의 3핀 소켓을 먼저 누른 뒤 상대 소켓을 누르세요. TTL 케이블은 필요하면 자동 추가됩니다.',motion:'체결된 상대 모터 몸체를 좌우 드래그하거나 ±90° 버튼으로 자세를 바꿉니다. 실제 모터는 움직이지 않습니다.',status:'화면 배선과 마지막 수동 스캔 결과는 서로 다른 상태입니다.'};
+      const prompts={assembly:state.assemblyTool==='connect'?'체결: 모터 회전축을 선택하거나 브라켓 판을 선택해 본체 체결면을 표시하세요.':'배치·회전: 선택한 부품의 핸들을 드래그하세요.',wiring:'USB 선은 별도입니다. OpenCR 또는 모터의 3핀 소켓을 먼저 누른 뒤 상대 소켓을 누르세요. TTL 케이블은 필요하면 자동 추가됩니다.',motion:'체결된 상대 모터 몸체를 좌우 드래그하거나 ±90° 버튼으로 자세를 바꿉니다. 실제 모터는 움직이지 않습니다.',status:'화면 배선과 마지막 수동 스캔 결과는 서로 다른 상태입니다.'};
       setMateStatus(prompts[mode]);draw();
     }
-    function draw(){if(!state.motor||!state.bracket||!state.opencr||!state.laptop)return;updateConnections();resize();gl.enable(gl.DEPTH_TEST);gl.clearColor(.04,.06,.08,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);const aspect=canvas.width/canvas.height;let dist=state.distance;let eye=[Math.cos(state.pitch)*Math.sin(state.yaw)*dist,Math.sin(state.pitch)*dist,Math.cos(state.pitch)*Math.cos(state.yaw)*dist].map((value,i)=>value+state.cameraTarget[i]);let view=lookAt(eye,state.cameraTarget,[0,1,0]);let proj=perspective(Math.PI/4,aspect,.01,100);state.lastFrame={view,proj,eye};gl.uniformMatrix4fv(loc.view,false,new Float32Array(view));gl.uniformMatrix4fv(loc.proj,false,new Float32Array(proj));visibleParts().forEach(part=>drawMesh(partMesh(part),partModel(part),partColor(part)));for(const motor of state.parts.motor)for(const axis of ['A','B'])drawMesh(state.rotor,rotorModel(motor,axis),axis==='A'?[.42,.95,.81]:[1,.72,.35]);drawMesh(state.usbWire,usbLinkModel(),[.32,.54,.78]);updatePortOverlay();drawGizmo();renderMotorIdOverlay();renderAxisGuide();renderFitAudit();renderConnectionChecks();recordHistory();scheduleAutosave();if(state.auto&&autoFrame===null){autoFrame=requestAnimationFrame(()=>{autoFrame=null;state.yaw+=.008;draw();});}}
+    function draw(){if(!state.motor||!state.bracket||!state.opencr||!state.laptop||!state.desk)return;updateConnections();resize();gl.enable(gl.DEPTH_TEST);gl.clearColor(.09,.13,.17,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);const aspect=canvas.width/canvas.height;let dist=state.distance;let eye=[Math.cos(state.pitch)*Math.sin(state.yaw)*dist,Math.sin(state.pitch)*dist,Math.cos(state.pitch)*Math.cos(state.yaw)*dist].map((value,i)=>value+state.cameraTarget[i]);let view=lookAt(eye,state.cameraTarget,[0,1,0]);let proj=perspective(Math.PI/4,aspect,.01,100);state.lastFrame={view,proj,eye};gl.uniformMatrix4fv(loc.view,false,new Float32Array(view));gl.uniformMatrix4fv(loc.proj,false,new Float32Array(proj));state.desk.forEach(item=>drawMesh(item.mesh,identity(),item.color));visibleParts().forEach(part=>drawMesh(partMesh(part),partModel(part),partColor(part)));for(const motor of state.parts.motor)for(const axis of ['A','B'])drawMesh(state.rotor,rotorModel(motor,axis),axis==='A'?[.42,.95,.81]:[1,.72,.35]);drawMesh(state.usbWire,usbLinkModel(),[.32,.54,.78]);updatePortOverlay();drawGizmo();renderMotorIdOverlay();renderAxisGuide();renderFitAudit();renderConnectionChecks();recordHistory();scheduleAutosave();if(state.auto&&autoFrame===null){autoFrame=requestAnimationFrame(()=>{autoFrame=null;state.yaw+=.008;draw();});}}
     function renderFitAudit(){
       const legacy=state.parts.bracket.find(part=>['top','bottom'].includes(part.mates.plate?.face));
       const example=state.parts.bracket.find(part=>part.rootSide==='plate'&&part.mates.plate?.face==='front'&&part.mates.fork?.axis==='A');
       const target=$('fitAudit');
-      target.textContent=legacy?'⚠ 윗면/아랫면 기존 결합: 제공 STEP에 맞는 판 체결 홀이 없어 실제 조립 불가. 연결을 해제하고 다시 선택하세요.':example?'⚠ +Z면 판 홀 4개 정렬 확인. 다만 A축 ±30°에서 브라켓↔회전 모터 본체 간섭이 STEP상 확인됐습니다. 화면 회전은 물리적 안전 범위가 아닙니다.':'STEP 검토: +Z면 판 홀 4개만 정렬 확인. 다른 체결면·회전 경로는 미검증이며 화면 연결이 실제 조립 가능성을 뜻하지 않습니다.';
+      target.dataset.verdict=legacy?'invalid':example?'interference':'unverified';
+      target.textContent=legacy?'체결 불가 · 윗면/아랫면 기존 결합에는 제공 STEP과 맞는 판 체결 홀이 없습니다. 연결을 해제하세요.':example?'부분 확인 / 간섭 확인 · +Z면 판 홀 4개는 정렬됩니다. 이 예제는 A축 ±30°에서 브라켓과 회전 모터 본체가 겹칩니다. 다른 각도와 실물 안전성은 검증되지 않았습니다.':'미검증 · +Z면 판 홀 4개 정렬만 별도 확인됐습니다. 현재 조립의 체결면·회전 경로는 검증되지 않았습니다.';
       target.classList.toggle('fit-warning',Boolean(legacy||example));
     }
     let axisGuideMarkup='';
@@ -403,7 +430,7 @@
       $('connectionSummary').textContent=`모터 ${state.parts.motor.length}개 · 브라켓 포크 ${forks}개 · 모터 간 연결 ${links}개 · 선택 모터 #${motorNumber}: ${Object.keys(axisMounts).map(axis=>`${axis} ${forkBracketsFor(motor.id).some(part=>part.mates.fork.axis===axis)?'사용':'대기'}`).join(' / ')}`;
     }
     function selectedPart(){return state.parts[state.selectedKey].find(part=>part.id===state.selectedId)||state.parts[state.selectedKey][0];}
-    function selectPart(key,id){state.selectedKey=key;state.selectedId=id;document.body.classList.add('inspector-open');updateSelectionControls();renderPartList();draw();}
+    function selectPart(key,id){state.selectedKey=key;state.selectedId=id;document.querySelectorAll('.placement-angle-row').forEach(row=>delete row.dataset.customOpen);document.body.classList.add('inspector-open');updateSelectionControls();renderPartList();draw();}
     function renderPartList(){const list=$('partList');if(!list)return;list.innerHTML=Object.keys(partDefs).map(key=>{const d=partDefs[key],parts=state.parts[key],selected=state.selectedKey===key;const instances=parts.length>1?`<div class="instance-list">${parts.map((part,index)=>{const detail=part.key==='bracket'?(part.mates.fork?` · ${part.mates.fork.axis}${part.mates.plate?'→모터':''}`:''):'';return `<button data-action="instance" data-id="${part.id}" class="${selected&&state.selectedId===part.id?'active':''}" aria-label="${d.label} #${index+1}${detail} 선택">#${index+1}${detail}</button>`;}).join('')}</div>`:'';return `<div class="part-row ${selected?'selected':''}" data-key="${key}"><button class="part-name" data-action="select">${d.label}</button><span class="part-count">${parts.length}</span><button data-action="remove" aria-label="${d.label} 마지막 부품 삭제" title="${parts.length===1?'최소 1개라 삭제할 수 없습니다':'마지막 인스턴스 삭제'}" ${parts.length===1?'disabled':''}>−</button><button data-action="add" aria-label="${d.label} 추가" title="부품 추가">＋</button>${instances}</div>`;}).join('');}
     function updateSelectionControls(){
       const part=selectedPart();if(!part)return;updateConnections();
@@ -426,7 +453,13 @@
       if(part.key==='bracket'){$('bracketRootSide').value=part.rootSide;$('bracketRootSide').disabled=Boolean(part.mates.fork&&part.mates.plate);$('bracketRootSide').querySelector('[value="fork"]').disabled=Boolean(part.mates.plate&&!part.mates.fork);}
       ['X','Y','Z'].forEach((axis,i)=>{$(`part${axis}`).value=part.pos[i];$(`part${axis}Value`).textContent=part.pos[i].toFixed(2);$(`part${axis}`).disabled=attached;});
       const angles=part.assemblyRotation?eulerFromRotation(part.assemblyRotation):part.rot;
-      ['X','Y','Z'].forEach((axis,i)=>{$(`partAngle${axis}`).value=Math.round(angles[i]);$(`partAngle${axis}Value`).textContent=`${Math.round(angles[i])}°`;$(`partAngle${axis}`).disabled=attached;});
+      document.querySelectorAll('.placement-angle-row').forEach((row,i)=>{
+        const angle=angles[i],preset=[-90,0,90].some(value=>Math.abs(angle-value)<1e-6),customOpen=row.dataset.customOpen==='true';
+        row.querySelectorAll('[data-placement-angle]').forEach(button=>{button.setAttribute('aria-pressed',String(!customOpen&&Math.abs(angle-Number(button.dataset.placementAngle))<1e-6));button.disabled=attached;});
+        const customButton=row.querySelector('[data-placement-custom]'),custom=row.querySelector('.placement-custom'),input=custom.querySelector('input');
+        customButton.setAttribute('aria-pressed',String(!preset||customOpen));customButton.disabled=attached;
+        custom.hidden=preset&&!customOpen;input.disabled=attached;input.value=String(attached?Number(angle.toFixed(2)):angle);
+      });
       for(const axis of ['A','B']){$(`joint${axis}Value`).textContent=`${part.joints?.[axis]||0}°`;document.querySelectorAll(`[data-joint="${axis}"]`).forEach(button=>button.disabled=part.key!=='motor');}
       const linked=connectedJointFor(part),pose=$('connectedPose');pose.hidden=!linked;
       if(linked)$('connectedPoseHint').textContent=`브라켓 #${state.parts.bracket.indexOf(linked.bracket)+1}의 ${linked.axis}축 · 현재 ${linked.motor.joints[linked.axis]}°. 선택한 상대 모터 몸체를 좌우로 드래그할 수 있습니다.`;
@@ -550,13 +583,14 @@
       const overlay=$('portOverlay');if(!overlay||!state.lastFrame)return;
       overlay.setAttribute('viewBox',`0 0 ${canvas.clientWidth} ${canvas.clientHeight}`);
       overlay.replaceChildren();
-      if(state.workspaceMode==='motion'||state.workspaceMode==='status')return;
+      if(state.workspaceMode==='motion'||state.workspaceMode==='status'||state.workspaceMode==='assembly'&&state.assemblyTool!=='connect')return;
       for(const part of visibleParts())for(const zone of interfaces[part.key]||[]){
         if(!state.pendingPort&&(part.key!==state.selectedKey||part.id!==state.selectedId))continue;
         if(!interfaceFacesCamera(part,zone))continue;
         const points=zonePoints(zone).map(point=>projectPoint(partModel(part),point));if(points.some(point=>!point))continue;
         const port=portsFor(part)[zone.anchor],candidate={key:part.key,id:part.id,anchor:zone.anchor,kind:port.kind};
         if(state.workspaceMode==='assembly'&&port.kind!=='mechanical')continue;
+        if(state.workspaceMode==='assembly'&&!state.pendingPort&&part.key==='motor'&&port.role==='case')continue;
         if(state.workspaceMode==='wiring'&&port.kind!=='ttl')continue;
         const selected=samePort(state.pendingPort,candidate)||Boolean(state.pendingPort?.kind==='mechanical'&&port.role==='shaft'&&state.pendingPort.key===part.key&&state.pendingPort.id===part.id&&portsFor(part)[state.pendingPort.anchor]?.axis===port.axis),occupied=port.kind==='mechanical'?mechanicalPortInUse(candidate):Boolean(portInUse(candidate));
         const compatible=state.pendingPort&&!selected&&validPortPair(state.pendingPort,candidate)&&!occupied;
@@ -618,7 +652,7 @@
     function drawGizmo(){
       const overlay=$('gizmoOverlay'),focusedAxis=overlay.contains(document.activeElement)?document.activeElement.dataset.gizmoAxis:null;
       overlay.setAttribute('viewBox',`0 0 ${canvas.clientWidth} ${canvas.clientHeight}`);overlay.replaceChildren();
-      if(state.workspaceMode!=='assembly'||state.pendingPort||state.drag?.kind==='camera'||state.drag?.kind==='pan')return;
+      if(state.workspaceMode!=='assembly'||state.assemblyTool!=='place'||state.pendingPort||state.drag?.kind==='camera'||state.drag?.kind==='pan')return;
       const part=selectedPart();if(!part||positionLocked(part))return;
       const center=projectWorldPoint(part.pos);if(!center)return;
       const axes=[[1,0,0],[0,1,0],[0,0,1]],radius=.82;
@@ -720,7 +754,7 @@
       else if(state.drag.kind==='pan')panCamera(dx,dy);
       else if(state.drag.kind==='joint'){
         const turn=state.drag.control;
-        turn.motor.joints[turn.axis]=Math.max(-90,Math.min(90,Math.round(state.drag.startAngle+(x-state.drag.startX)*.5)));
+        turn.motor.joints[turn.axis]=clampPreviewJoint(turn.axis,Math.round(state.drag.startAngle+(x-state.drag.startX)*.5));
         updateSelectionControls();setMateStatus(`체결 유지 · ${turn.axis}축 ${turn.motor.joints[turn.axis]}° (시각화만, 실제 가동 가능 여부 미확인)`);
       }
       last=[x,y];draw();
@@ -729,6 +763,7 @@
     canvas.addEventListener('pointerup',finishDrag);canvas.addEventListener('pointercancel',finishDrag);
     canvas.addEventListener('wheel',e=>{e.preventDefault();state.distance=Math.max(1.1,Math.min(25,state.distance*(e.deltaY>0?1.08:.92)));draw();},{passive:false});
     document.querySelectorAll('[data-workspace-mode]').forEach(button=>button.addEventListener('click',()=>setWorkspaceMode(button.dataset.workspaceMode)));
+    document.querySelectorAll('[data-assembly-tool]').forEach(button=>button.addEventListener('click',()=>setAssemblyTool(button.dataset.assemblyTool)));
     $('undoBtn').addEventListener('click',()=>travelHistory('undo'));
     $('redoBtn').addEventListener('click',()=>travelHistory('redo'));
     window.addEventListener('keydown',event=>{
@@ -746,12 +781,29 @@
     $('resetBtn').addEventListener('click',()=>{state.yaw=.55;state.pitch=.3;focusAssembly();setViewMode('part');draw();}); $('autoBtn').addEventListener('click',()=>{state.auto=!state.auto;$('autoBtn').textContent=state.auto?'회전 중지':'자동 회전';$('statusText').textContent=state.auto?'3D 자동 회전 중':'STEP 부분 검토 완료 · 실물 체결 미검증';if(!state.auto&&autoFrame!==null){cancelAnimationFrame(autoFrame);autoFrame=null;}if(state.auto)draw();}); $('moveMode').addEventListener('click',()=>{state.transformMode='move';updateSelectionControls();draw();}); $('rotateMode').addEventListener('click',()=>{state.transformMode='rotate';updateSelectionControls();draw();}); $('resetPartBtn').addEventListener('click',()=>resetPart(selectedPart())); $('resetAllBtn').addEventListener('click',resetAllParts); $('detachBtn').addEventListener('click',()=>{detachPart(selectedPart());state.pendingPort=null;updateSelectionControls();renderPartList();draw();});
     window.addEventListener('keydown',event=>{if(event.key==='Escape'&&state.pendingPort){state.pendingPort=null;setMateStatus('연결 선택을 취소했습니다.');draw();}});
     [['partX',0],['partY',1],['partZ',2]].forEach(([id,index])=>$(id).addEventListener('change',e=>{const part=selectedPart(),value=Number(e.target.value);if(!Number.isFinite(value)||value< -12||value>12||!releaseForManualTransform(part)){updateSelectionControls();return;}part.pos[index]=value;updateSelectionControls();renderPartList();draw();}));
-    ['X','Y','Z'].forEach((axis,index)=>$(`partAngle${axis}`).addEventListener('change',e=>{const part=selectedPart(),value=Number(e.target.value);if(!Number.isFinite(value)||value< -180||value>180||!releaseForManualTransform(part)){updateSelectionControls();return;}part.rot[index]=value;updateSelectionControls();renderPartList();draw();}));
+    $('placementRotation').addEventListener('click',event=>{
+      const button=event.target.closest('button'),row=button?.closest('.placement-angle-row');if(!row)return;
+      const part=selectedPart(),axis='XYZ'.indexOf(row.dataset.placementAxis);if(axis<0||!releaseForManualTransform(part)){updateSelectionControls();return;}
+      if(button.hasAttribute('data-placement-custom')){
+        row.dataset.customOpen='true';updateSelectionControls();const input=row.querySelector('input');input.focus();input.select();return;
+      }
+      if(!button.hasAttribute('data-placement-angle'))return;
+      delete row.dataset.customOpen;part.rot[axis]=Number(button.dataset.placementAngle);
+      updateSelectionControls();draw();
+    });
+    $('placementRotation').addEventListener('change',event=>{
+      const input=event.target;if(!input.matches('.placement-custom input'))return;
+      const row=input.closest('.placement-angle-row'),part=selectedPart(),axis='XYZ'.indexOf(row.dataset.placementAxis),raw=input.value.trim(),value=Number(raw);
+      if(!raw||!Number.isFinite(value)||value< -180||value>180){input.setCustomValidity('−180°에서 180° 사이의 각도를 입력하세요.');input.reportValidity();return;}
+      input.setCustomValidity('');if(axis<0||!releaseForManualTransform(part)){updateSelectionControls();return;}
+      part.rot[axis]=value;row.dataset.customOpen='true';updateSelectionControls();draw();
+    });
+    $('placementRotation').addEventListener('input',event=>{if(event.target.matches('.placement-custom input'))event.target.setCustomValidity('');});
     let activeJointTurn=null;
     function stopJointTurn(){if(activeJointTurn?.frame)cancelAnimationFrame(activeJointTurn.frame);activeJointTurn=null;}
     function applyJointTurn(turn,steps){
       if(selectedPart()!==turn.motor){stopJointTurn();return;}
-      const value=Math.max(-90,Math.min(90,turn.motor.joints[turn.axis]+turn.direction*steps));
+      const value=clampPreviewJoint(turn.axis,turn.motor.joints[turn.axis]+turn.direction*steps);
       if(value===turn.motor.joints[turn.axis]){stopJointTurn();return;}
       turn.motor.joints[turn.axis]=value;updateSelectionControls();draw();
       setMateStatus(`모터 #${state.parts.motor.indexOf(turn.motor)+1} 축 ${turn.axis} ${value}° · 화면 시뮬레이션 (실물 명령 없음)`);
@@ -771,7 +823,7 @@
     });
     document.querySelectorAll('[data-pose-angle]').forEach(button=>button.addEventListener('click',()=>{
       const linked=connectedJointFor(selectedPart());if(!linked)return;
-      linked.motor.joints[linked.axis]=Number(button.dataset.poseAngle);
+      linked.motor.joints[linked.axis]=clampPreviewJoint(linked.axis,Number(button.dataset.poseAngle));
       updateSelectionControls();draw();
       setMateStatus(`체결 유지 · ${linked.axis}축 ${linked.motor.joints[linked.axis]}° 자세 미리보기. 실물 가동각이나 간섭 안전을 뜻하지 않습니다.`);
     }));

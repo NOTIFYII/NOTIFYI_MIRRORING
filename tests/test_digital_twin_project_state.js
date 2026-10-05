@@ -46,6 +46,18 @@ test('older saved projects load with unassigned axes', () => {
   assert.equal(project.validate(old).parts.bracket[0].rootSide, 'fork');
 });
 
+test('version 1 scene positions migrate to desk surface Y=0 only once', () => {
+  const old = project.capture(example());
+  old.version = 1;
+  old.parts.motor[0].pos[1] = -1;
+  old.parts.opencr[0].pos[1] = -1.55;
+  const migrated = project.validate(old);
+  assert.equal(migrated.version, 2);
+  assert.ok(Math.abs(migrated.parts.motor[0].pos[1] - .58) < 1e-10);
+  assert.ok(Math.abs(migrated.parts.opencr[0].pos[1] - .03) < 1e-10);
+  assert.deepEqual(project.decode(JSON.stringify(migrated)).parts.motor[0].pos, migrated.parts.motor[0].pos);
+});
+
 test('plate-root bracket supports lower case to upper shaft and preserves the direction', () => {
   const parts = example();
   parts.bracket[0].rootSide = 'plate';

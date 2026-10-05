@@ -90,6 +90,20 @@ test('체결 예제는 부분 확인과 회전 간섭을 함께 알리고 실제
   }
 });
 
+test('부품 수량표는 화면 수량과 연결 완료 수량을 구분한다', async () => {
+  const { context, page } = await freshPage();
+  try {
+    await page.locator('#exampleAssemblyBtn').click();
+    await page.locator('#assemblyBom').evaluate(node => { node.open = true; });
+    const rows = await page.locator('#assemblyBomList tbody tr').evaluateAll(nodes => nodes.map(node => Array.from(node.querySelectorAll('td'), cell => cell.textContent)));
+    assert.ok(rows.some(row => row[0] === '2XL-430 모터 하우징' && row[1] === '2'), JSON.stringify(rows));
+    assert.ok(rows.some(row => row[0] === 'EF25-F14 브라켓' && row[1] === '1' && row[2] === '1'));
+    assert.ok(rows.some(row => row[0] === 'DXL TTL 3P 케이블' && row[1] === '1' && row[2] === '0'));
+  } finally {
+    await context.close();
+  }
+});
+
 test('좁은 화면에서 작업 도구와 부품 목록이 겹치지 않는다', async () => {
   const { context, page } = await freshPage();
   try {

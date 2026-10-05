@@ -36,6 +36,9 @@ body[data-workspace-mode=status] .assembly-tools { display:none; }
 .cable-measurements summary { cursor:pointer; color:#d9f7ef; }
 .cable-measurements p { margin:7px 0; line-height:1.45; }
 .cable-measurements [data-over-reference="true"] { color:#ffd6a4; }
+#assemblyBomList table { width:100%; border-collapse:collapse; font-size:10px; font-variant-numeric:tabular-nums; }
+#assemblyBomList th, #assemblyBomList td { padding:7px 3px; border-bottom:1px solid #36505d; text-align:left; vertical-align:top; }
+#assemblyBomList th:not(:first-child), #assemblyBomList td:not(:first-child) { text-align:right; white-space:nowrap; }
 .controls #fitAudit { padding:8px 10px; border:1px solid #435665; border-radius:8px; background:#15232c; line-height:1.5; }
 .controls #fitAudit[data-verdict="interference"],.controls #fitAudit[data-verdict="invalid"] { border-color:#ad7849; background:#35271e; }
 .joint-preview-note { display:none; color:#ffd6a4; font-size:11px; line-height:1.45; }

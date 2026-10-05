@@ -235,6 +235,23 @@
       if(!rows.length){const empty=document.createElement('p');empty.textContent='연결된 3P 케이블이 없습니다.';container.append(empty);return;}
       for(const row of rows){const line=document.createElement('p');line.dataset.overReference=String(row.overReference);line.textContent=`${row.label} · ${row.ends} · 직선거리 약 ${row.distance} mm${row.overReference?' · 참조 180 mm 초과 후보':''}`;container.append(line);}
     }
+    function renderAssemblyBom(){
+      const rows=NotifyiAssemblyBom.build(state.parts),signature=JSON.stringify(rows),container=$('assemblyBomList');
+      if(container.dataset.signature===signature)return;
+      container.dataset.signature=signature;container.replaceChildren();
+      const table=document.createElement('table'),caption=document.createElement('caption');caption.textContent='현재 조립안의 화면 수량과 양쪽 연결 완료 수량';caption.className='sr-only';table.append(caption);
+      const head=document.createElement('thead'),headRow=document.createElement('tr');
+      for(const label of ['부품','화면 수량','연결 완료']){const cell=document.createElement('th');cell.scope='col';cell.textContent=label;headRow.append(cell);}head.append(headRow);table.append(head);
+      const body=document.createElement('tbody');
+      for(const row of rows){const tr=document.createElement('tr');for(const value of [row.label,row.count,row.connected??'—']){const cell=document.createElement('td');cell.textContent=String(value);tr.append(cell);}body.append(tr);}
+      table.append(body);container.append(table);
+    }
+    function exportAssemblyBom(){
+      const csv=NotifyiAssemblyBom.toCsv(NotifyiAssemblyBom.build(state.parts));
+      const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+      const link=document.createElement('a');link.href=url;link.download=`notifyi-assembly-parts-${new Date().toISOString().slice(0,10)}.csv`;document.body.append(link);link.click();link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),60_000);
+    }
     let statusTimer=null;
     async function loadWorkspaceStatus(){renderJointMap(null);async function refresh(){try{const response=await fetch('/api/workspace',{cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status}`);const data=await response.json();state.workspace=data;renderJointMap(data);renderAxisIdEditor();renderMotorIdOverlay();renderConnectionChecks();const port=data?.bus?.port||'/dev/ttyACM0',host=data?.host||'현재 컴퓨터';$('hardwareStatus').textContent=data.port_present?`${host}: ${port} 경로 확인 · 보드 식별과 모터 응답은 별도 상태 참조`:`${host}: ${port} 장치 경로 없음 · 삼성 노트북 연결 상태는 이 컴퓨터에서 확인 불가`;return true;}catch{state.workspace=null;renderAxisIdEditor();renderMotorIdOverlay();renderConnectionChecks();$('hardwareStatus').textContent='실물 상태 미확인 · 이 화면은 배선 계획입니다. 읽기 전용 서버로 열면 해당 컴퓨터의 USB 장치 경로를 확인합니다.';if(statusTimer){clearInterval(statusTimer);statusTimer=null;}return false;}}if(await refresh()&&location.protocol.startsWith('http'))statusTimer=setInterval(refresh,3000);}
     function resize(){const dpr=Math.min(2,devicePixelRatio||1),w=canvas.clientWidth*dpr,h=canvas.clientHeight*dpr;if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}}
@@ -422,7 +439,7 @@
       const prompts={assembly:state.assemblyTool==='connect'?'체결: 모터 회전축을 선택하거나 브라켓 판을 선택해 본체 체결면을 표시하세요.':'배치·회전: 선택한 부품의 핸들을 드래그하세요.',wiring:'USB 선은 별도입니다. OpenCR 또는 모터의 3핀 소켓을 먼저 누른 뒤 상대 소켓을 누르세요. TTL 케이블은 필요하면 자동 추가됩니다.',motion:'체결된 상대 모터 몸체를 좌우 드래그하거나 ±90° 버튼으로 자세를 바꿉니다. 실제 모터는 움직이지 않습니다.',status:'화면 배선과 마지막 수동 스캔 결과는 서로 다른 상태입니다.'};
       setMateStatus(prompts[mode]);draw();
     }
-    function draw(){if(!state.motor||!state.bracket||!state.opencr||!state.laptop||!state.desk)return;updateConnections();resize();gl.enable(gl.DEPTH_TEST);gl.clearColor(.09,.13,.17,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);const aspect=canvas.width/canvas.height;let dist=state.distance;let eye=[Math.cos(state.pitch)*Math.sin(state.yaw)*dist,Math.sin(state.pitch)*dist,Math.cos(state.pitch)*Math.cos(state.yaw)*dist].map((value,i)=>value+state.cameraTarget[i]);let view=lookAt(eye,state.cameraTarget,[0,1,0]);let proj=perspective(Math.PI/4,aspect,.01,100);state.lastFrame={view,proj,eye};gl.uniformMatrix4fv(loc.view,false,new Float32Array(view));gl.uniformMatrix4fv(loc.proj,false,new Float32Array(proj));state.desk.forEach(item=>drawMesh(item.mesh,identity(),item.color));visibleParts().forEach(part=>drawMesh(partMesh(part),partModel(part),partColor(part)));for(const motor of state.parts.motor)for(const axis of ['A','B'])drawMesh(state.rotor,rotorModel(motor,axis),axis==='A'?[.42,.95,.81]:[1,.72,.35]);drawMesh(state.usbWire,usbLinkModel(),[.32,.54,.78]);updatePortOverlay();drawGizmo();renderMotorIdOverlay();renderAxisGuide();renderFitAudit();renderConnectionChecks();renderCableMeasurements();recordHistory();scheduleAutosave();if(state.auto&&autoFrame===null){autoFrame=requestAnimationFrame(()=>{autoFrame=null;state.yaw+=.008;draw();});}}
+    function draw(){if(!state.motor||!state.bracket||!state.opencr||!state.laptop||!state.desk)return;updateConnections();resize();gl.enable(gl.DEPTH_TEST);gl.clearColor(.09,.13,.17,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);const aspect=canvas.width/canvas.height;let dist=state.distance;let eye=[Math.cos(state.pitch)*Math.sin(state.yaw)*dist,Math.sin(state.pitch)*dist,Math.cos(state.pitch)*Math.cos(state.yaw)*dist].map((value,i)=>value+state.cameraTarget[i]);let view=lookAt(eye,state.cameraTarget,[0,1,0]);let proj=perspective(Math.PI/4,aspect,.01,100);state.lastFrame={view,proj,eye};gl.uniformMatrix4fv(loc.view,false,new Float32Array(view));gl.uniformMatrix4fv(loc.proj,false,new Float32Array(proj));state.desk.forEach(item=>drawMesh(item.mesh,identity(),item.color));visibleParts().forEach(part=>drawMesh(partMesh(part),partModel(part),partColor(part)));for(const motor of state.parts.motor)for(const axis of ['A','B'])drawMesh(state.rotor,rotorModel(motor,axis),axis==='A'?[.42,.95,.81]:[1,.72,.35]);drawMesh(state.usbWire,usbLinkModel(),[.32,.54,.78]);updatePortOverlay();drawGizmo();renderMotorIdOverlay();renderAxisGuide();renderFitAudit();renderConnectionChecks();renderCableMeasurements();renderAssemblyBom();recordHistory();scheduleAutosave();if(state.auto&&autoFrame===null){autoFrame=requestAnimationFrame(()=>{autoFrame=null;state.yaw+=.008;draw();});}}
     function renderFitAudit(){
       const audits=state.parts.bracket.map(bracket=>({bracket,audit:NotifyiFitAudit.assess(bracket,state.parts.motor)}));
       const invalid=audits.filter(({audit})=>audit.holes.status==='invalid');
@@ -807,6 +824,7 @@
     $('exampleAssemblyBtn').addEventListener('click',loadExampleAssembly);
     $('closeInspectorBtn').addEventListener('click',()=>{document.body.classList.remove('inspector-open');draw();});
     $('exportProjectBtn').addEventListener('click',exportProject);
+    $('exportBomBtn').addEventListener('click',exportAssemblyBom);
     $('importProjectBtn').addEventListener('click',()=>$('projectFile').click());
     $('projectFile').addEventListener('change',event=>importProject(event.target.files?.[0]));
     $('resetBtn').addEventListener('click',()=>{state.yaw=.55;state.pitch=.3;focusAssembly();setViewMode('part');draw();}); $('autoBtn').addEventListener('click',()=>{state.auto=!state.auto;$('autoBtn').textContent=state.auto?'회전 중지':'자동 회전';$('statusText').textContent=state.auto?'3D 자동 회전 중':'STEP 부분 검토 완료 · 실물 체결 미검증';if(!state.auto&&autoFrame!==null){cancelAnimationFrame(autoFrame);autoFrame=null;}if(state.auto)draw();}); $('moveMode').addEventListener('click',()=>{state.transformMode='move';updateSelectionControls();draw();}); $('rotateMode').addEventListener('click',()=>{state.transformMode='rotate';updateSelectionControls();draw();}); $('resetPartBtn').addEventListener('click',()=>resetPart(selectedPart())); $('resetAllBtn').addEventListener('click',resetAllParts); $('detachBtn').addEventListener('click',()=>{detachPart(selectedPart());state.pendingPort=null;updateSelectionControls();renderPartList();draw();});

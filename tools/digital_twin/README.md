@@ -2,6 +2,8 @@
 
 조립 검사 표시는 브라켓별로 `판 홀 정렬 / 정적 간섭 / 회전 간섭 / 배선 여유`를 분리한다. 제공 STEP에서 확인한 +Z면 판 홀 정렬과 특정 `판 고정 + A축 포크` 예제의 ±30° 간섭만 해당 브라켓에 적용한다. 다른 축·체결 방향에는 결과를 전파하지 않고 `미검증`으로 남긴다. 이 표는 새로운 충돌 계산기나 실물 구동 허가가 아니다.
 
+장비 상태의 `화면상 케이블 직선거리`는 연결된 3P 케이블의 화면상 두 소켓 중심 사이 유클리드 거리를 mm로 환산한다. 소켓 중심은 STEP 부품 외접 범위를 기준으로 수동 배치된 근사점이며, 배선 경로·굽힘 반경·움직임 여유·실제 케이블 길이는 계산하지 않는다. 180 mm를 넘는 경우도 참고 경고일 뿐, 실물 적합·부적합 판정이 아니다.
+
 실물 모터 읽기 전용 동기화와 조립판의 남은 개발 과제는 [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)에 단계별 완료 조건으로 정리했다.
 
 제공 STEP의 볼트 홀과 배치 예제의 간섭을 별도로 계산했다. 결과와 한계는 [CAD_FIT_AUDIT.md](CAD_FIT_AUDIT.md)에 있다. **현재 2모터 예제는 +Z면 판 홀 4개가 정렬되지만 A축 ±30°에서 형상이 겹쳐 구동 가능한 설계가 아니다.**
@@ -48,7 +50,7 @@ Playwright Chromium이 설치된 컴퓨터에서 아래 검사를 실행하면 �
 PLAYWRIGHT_MODULE="$(npm root -g)/@3xhaust/oh-my-design/node_modules/playwright" node --test tests/test_digital_twin_browser.cjs
 ```
 
-다른 위치에 Playwright를 설치했다면 `PLAYWRIGHT_MODULE`에 그 모듈 경로를 지정한다. 코드·저장 포맷·브라켓별 검증 범위 단위 검사는 `node --test tests/test_digital_twin_kinematics.js tests/test_digital_twin_project_state.js tests/test_digital_twin_fit_audit.js`로 실행한다.
+다른 위치에 Playwright를 설치했다면 `PLAYWRIGHT_MODULE`에 그 모듈 경로를 지정한다. 코드·저장 포맷·브라켓별 검증 범위·화면 거리 단위 검사는 `node --test tests/test_digital_twin_kinematics.js tests/test_digital_twin_project_state.js tests/test_digital_twin_fit_audit.js tests/test_digital_twin_cable_measure.js`로 실행한다.
 
 ### 조립 작업 저장·이동
 

@@ -123,6 +123,9 @@ test('OpenCR TTL 포트 둘에 모터를 각각 연결하면 케이블이 자동
     await page.locator('.interface-region[data-key=opencr]').first().click();
     assert.equal(await page.locator('.part-row[data-key=connector] .part-count').innerText(), '2');
     assert.match(await page.locator('#connectionChecks').innerText(), /화면 배선 · 2개 연결/);
+    await page.locator('.cable-measurements').evaluate(node => { node.open = true; });
+    assert.match(await page.locator('#cableMeasurements').innerText(), /케이블 #1.*직선거리 약 [\d.]+ mm/);
+    assert.match(await page.locator('#cableMeasurements').innerText(), /케이블 #2.*직선거리 약 [\d.]+ mm/);
   } finally {
     await context.close();
   }

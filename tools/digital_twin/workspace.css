@@ -32,6 +32,10 @@ body[data-workspace-mode=status] .assembly-tools { display:none; }
 .fit-audit-card strong { display:block; margin-bottom:5px; }
 .fit-audit-card p { margin:5px 0; line-height:1.4; }
 .fit-audit-card [data-status="interference"], .fit-audit-card [data-status="invalid"] { color:#ffd6a4; }
+.cable-measurements { margin:12px 0; padding:9px 11px; border:1px solid #36505d; border-radius:8px; font-size:11px; }
+.cable-measurements summary { cursor:pointer; color:#d9f7ef; }
+.cable-measurements p { margin:7px 0; line-height:1.45; }
+.cable-measurements [data-over-reference="true"] { color:#ffd6a4; }
 .controls #fitAudit { padding:8px 10px; border:1px solid #435665; border-radius:8px; background:#15232c; line-height:1.5; }
 .controls #fitAudit[data-verdict="interference"],.controls #fitAudit[data-verdict="invalid"] { border-color:#ad7849; background:#35271e; }
 .joint-preview-note { display:none; color:#ffd6a4; font-size:11px; line-height:1.45; }

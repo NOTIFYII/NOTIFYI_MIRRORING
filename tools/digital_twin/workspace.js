@@ -217,6 +217,24 @@
       container.dataset.signature=signature;container.replaceChildren();
       for(const row of rows){const card=document.createElement('div');card.className='connection-check';card.dataset.level=row.level;const signal=document.createElement('span');signal.className='signal';signal.setAttribute('aria-hidden','true');const body=document.createElement('div');const title=document.createElement('strong');title.textContent=row.title;const detail=document.createElement('small');detail.textContent=row.detail;body.append(title,detail);card.append(signal,body);container.append(card);}
     }
+    function renderCableMeasurements(){
+      if(!state.motor)return;
+      const rows=[];
+      for(const cable of state.parts.connector){
+        if(!cable.connection)continue;
+        const ends=[cable.connection.a,cable.connection.b];
+        const parts=ends.map(end=>findPart(end.key,end.id));
+        if(parts.some(part=>!part))continue;
+        const distance=NotifyiCableMeasure.straightLineMm(partAnchor(parts[0],ends[0].anchor),partAnchor(parts[1],ends[1].anchor),state.motor.radius);
+        if(distance===null)continue;
+        rows.push({label:`케이블 #${state.parts.connector.indexOf(cable)+1}`,ends:ends.map((end,index)=>portLabel(parts[index],end.anchor)).join(' ↔ '),distance:distance.toFixed(1),overReference:distance>180});
+      }
+      const container=$('cableMeasurements'),signature=JSON.stringify(rows);
+      if(container.dataset.signature===signature)return;
+      container.dataset.signature=signature;container.replaceChildren();
+      if(!rows.length){const empty=document.createElement('p');empty.textContent='연결된 3P 케이블이 없습니다.';container.append(empty);return;}
+      for(const row of rows){const line=document.createElement('p');line.dataset.overReference=String(row.overReference);line.textContent=`${row.label} · ${row.ends} · 직선거리 약 ${row.distance} mm${row.overReference?' · 참조 180 mm 초과 후보':''}`;container.append(line);}
+    }
     let statusTimer=null;
     async function loadWorkspaceStatus(){renderJointMap(null);async function refresh(){try{const response=await fetch('/api/workspace',{cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status}`);const data=await response.json();state.workspace=data;renderJointMap(data);renderAxisIdEditor();renderMotorIdOverlay();renderConnectionChecks();const port=data?.bus?.port||'/dev/ttyACM0',host=data?.host||'현재 컴퓨터';$('hardwareStatus').textContent=data.port_present?`${host}: ${port} 경로 확인 · 보드 식별과 모터 응답은 별도 상태 참조`:`${host}: ${port} 장치 경로 없음 · 삼성 노트북 연결 상태는 이 컴퓨터에서 확인 불가`;return true;}catch{state.workspace=null;renderAxisIdEditor();renderMotorIdOverlay();renderConnectionChecks();$('hardwareStatus').textContent='실물 상태 미확인 · 이 화면은 배선 계획입니다. 읽기 전용 서버로 열면 해당 컴퓨터의 USB 장치 경로를 확인합니다.';if(statusTimer){clearInterval(statusTimer);statusTimer=null;}return false;}}if(await refresh()&&location.protocol.startsWith('http'))statusTimer=setInterval(refresh,3000);}
     function resize(){const dpr=Math.min(2,devicePixelRatio||1),w=canvas.clientWidth*dpr,h=canvas.clientHeight*dpr;if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}}
@@ -404,7 +422,7 @@
       const prompts={assembly:state.assemblyTool==='connect'?'체결: 모터 회전축을 선택하거나 브라켓 판을 선택해 본체 체결면을 표시하세요.':'배치·회전: 선택한 부품의 핸들을 드래그하세요.',wiring:'USB 선은 별도입니다. OpenCR 또는 모터의 3핀 소켓을 먼저 누른 뒤 상대 소켓을 누르세요. TTL 케이블은 필요하면 자동 추가됩니다.',motion:'체결된 상대 모터 몸체를 좌우 드래그하거나 ±90° 버튼으로 자세를 바꿉니다. 실제 모터는 움직이지 않습니다.',status:'화면 배선과 마지막 수동 스캔 결과는 서로 다른 상태입니다.'};
       setMateStatus(prompts[mode]);draw();
     }
-    function draw(){if(!state.motor||!state.bracket||!state.opencr||!state.laptop||!state.desk)return;updateConnections();resize();gl.enable(gl.DEPTH_TEST);gl.clearColor(.09,.13,.17,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);const aspect=canvas.width/canvas.height;let dist=state.distance;let eye=[Math.cos(state.pitch)*Math.sin(state.yaw)*dist,Math.sin(state.pitch)*dist,Math.cos(state.pitch)*Math.cos(state.yaw)*dist].map((value,i)=>value+state.cameraTarget[i]);let view=lookAt(eye,state.cameraTarget,[0,1,0]);let proj=perspective(Math.PI/4,aspect,.01,100);state.lastFrame={view,proj,eye};gl.uniformMatrix4fv(loc.view,false,new Float32Array(view));gl.uniformMatrix4fv(loc.proj,false,new Float32Array(proj));state.desk.forEach(item=>drawMesh(item.mesh,identity(),item.color));visibleParts().forEach(part=>drawMesh(partMesh(part),partModel(part),partColor(part)));for(const motor of state.parts.motor)for(const axis of ['A','B'])drawMesh(state.rotor,rotorModel(motor,axis),axis==='A'?[.42,.95,.81]:[1,.72,.35]);drawMesh(state.usbWire,usbLinkModel(),[.32,.54,.78]);updatePortOverlay();drawGizmo();renderMotorIdOverlay();renderAxisGuide();renderFitAudit();renderConnectionChecks();recordHistory();scheduleAutosave();if(state.auto&&autoFrame===null){autoFrame=requestAnimationFrame(()=>{autoFrame=null;state.yaw+=.008;draw();});}}
+    function draw(){if(!state.motor||!state.bracket||!state.opencr||!state.laptop||!state.desk)return;updateConnections();resize();gl.enable(gl.DEPTH_TEST);gl.clearColor(.09,.13,.17,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);const aspect=canvas.width/canvas.height;let dist=state.distance;let eye=[Math.cos(state.pitch)*Math.sin(state.yaw)*dist,Math.sin(state.pitch)*dist,Math.cos(state.pitch)*Math.cos(state.yaw)*dist].map((value,i)=>value+state.cameraTarget[i]);let view=lookAt(eye,state.cameraTarget,[0,1,0]);let proj=perspective(Math.PI/4,aspect,.01,100);state.lastFrame={view,proj,eye};gl.uniformMatrix4fv(loc.view,false,new Float32Array(view));gl.uniformMatrix4fv(loc.proj,false,new Float32Array(proj));state.desk.forEach(item=>drawMesh(item.mesh,identity(),item.color));visibleParts().forEach(part=>drawMesh(partMesh(part),partModel(part),partColor(part)));for(const motor of state.parts.motor)for(const axis of ['A','B'])drawMesh(state.rotor,rotorModel(motor,axis),axis==='A'?[.42,.95,.81]:[1,.72,.35]);drawMesh(state.usbWire,usbLinkModel(),[.32,.54,.78]);updatePortOverlay();drawGizmo();renderMotorIdOverlay();renderAxisGuide();renderFitAudit();renderConnectionChecks();renderCableMeasurements();recordHistory();scheduleAutosave();if(state.auto&&autoFrame===null){autoFrame=requestAnimationFrame(()=>{autoFrame=null;state.yaw+=.008;draw();});}}
     function renderFitAudit(){
       const audits=state.parts.bracket.map(bracket=>({bracket,audit:NotifyiFitAudit.assess(bracket,state.parts.motor)}));
       const invalid=audits.filter(({audit})=>audit.holes.status==='invalid');

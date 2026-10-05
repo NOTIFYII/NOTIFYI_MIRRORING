@@ -11,6 +11,7 @@ data/logs/
 data/runs/
 data/samples/
 data/connection_status.json
+data/connection_status.json.lock
 
 # 개인 장비·실험 메모 — 공유하지 않음
 docs/private/

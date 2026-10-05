@@ -169,7 +169,7 @@
             const torque=observed?.torque_enable===0?'0 해제':observed?.torque_enable===1?'1 인가':'미확인';
             line.textContent=`${axis}: zero ${id?zero:'—'} · 토크 ${id?torque:'—'}`;card.append(line);
           }
-          const source=document.createElement('span');source.textContent=probe?`토크: ${new Date(probe.checked_at*1000).toLocaleTimeString()} 수동 스캔`:'토크: 수동 스캔 기록 없음';card.append(source);
+          const source=document.createElement('span');source.textContent=probe?`관측: ${new Date(probe.checked_at*1000).toLocaleTimeString()} · ${probe.source==='read_only_watch'?(probe.fresh?'읽기 전용 갱신':'갱신 중단'):'수동 스캔'}${probe.fresh?'':' · 오래된 값'}`:'관측 기록 없음';card.append(source);
         }
         overlay.append(card);
       }
@@ -179,11 +179,11 @@
       const joints=data?.joints?.length?data.joints:configuredJoints,probe=data?.motor_probe;
       const ids=data?[...new Set([...(data.active_ids||[]),...(data.unused_ids||[])])].sort((a,b)=>a-b):[1,2,3,4,5,6,7,8];
       const states=new Map((probe?.motor_states||[]).map(item=>[item.id,item]));
-      const map=$('jointMap'),signature=JSON.stringify([joints,ids,probe?.checked_at,probe?.motor_states]);
+      const map=$('jointMap'),signature=JSON.stringify([joints,ids,probe?.checked_at,probe?.age_seconds,probe?.fresh,probe?.motor_states]);
       if(map.dataset.signature===signature)return;
       map.dataset.signature=signature;map.replaceChildren();
       const heading=document.createElement('p');
-      heading.textContent=probe?`토크·현재 위치: ${new Date(probe.checked_at*1000).toLocaleTimeString()} 수동 스캔 기록 · 실시간 아님`:data?'토크·현재 위치: 스캔 기록 없음':'설정값 스냅샷 · 서버로 열면 설정을 다시 읽습니다';
+      heading.textContent=probe?`토크·현재 위치: ${new Date(probe.checked_at*1000).toLocaleTimeString()} · ${probe.source==='read_only_watch'?(probe.fresh?`읽기 전용 관측 #${probe.sequence} · ${probe.age_seconds}초 전`:'관측 중단 · 마지막 값'):'수동 스캔 기록 · 실시간 아님'}${probe.fresh?'':' · 현재 상태 아님'}`:data?'토크·현재 위치: 관측 기록 없음':'설정값 스냅샷 · 서버로 열면 설정을 다시 읽습니다';
       map.append(heading);
       const table=document.createElement('table'),caption=document.createElement('caption');caption.textContent='모터 ID별 설정 zero와 마지막 스캔 상태';caption.className='sr-only';table.append(caption);
       const thead=document.createElement('thead'),headrow=document.createElement('tr');
@@ -206,11 +206,11 @@
       const expected=data?.active_ids||[2,3,4,5,6,7],responding=new Set(probe?.responding_ids||[]);
       const allResponded=expected.length>0&&expected.every(id=>responding.has(id));
       const motorLevel=probe?.fresh?(allResponded?'detected':'absent'):'unknown';
-      const motorText=probe?.fresh?(allResponded?`설정된 ID ${expected.join(', ')} 전부 응답`:`${expected.filter(id=>responding.has(id)).length}/${expected.length}개 ID 응답 · 미응답 ${expected.filter(id=>!responding.has(id)).join(', ')||'없음'}`):probe?`마지막 검사 ${new Date(probe.checked_at*1000).toLocaleTimeString()} · 현재 상태 미확인`:'모터 응답 검사 기록 없음';
+      const motorText=probe?.fresh?(allResponded?`설정된 ID ${expected.join(', ')} 전부 응답 · ${probe.age_seconds}초 전`:`${expected.filter(id=>responding.has(id)).length}/${expected.length}개 ID 응답 · 미응답 ${expected.filter(id=>!responding.has(id)).join(', ')||'없음'} · ${probe.age_seconds}초 전`):probe?`마지막 관측 ${new Date(probe.checked_at*1000).toLocaleTimeString()} · 현재 상태 미확인`:'모터 응답 기록 없음';
       const rows=[
         {level:planned?'planned':'unknown',title:`화면 배선 · ${planned}개 연결`,detail:'3D에서 지정한 경로이며 실물 연결 증거는 아님'},
         {level:data?.port_present?'detected':data?'absent':'unknown',title:data?.port_present?'USB 장치 경로 감지':data?'설정된 USB 장치 경로 없음':'USB 장치 상태 미확인',detail:`${data?.host||'현재 컴퓨터'} · ${data?.bus?.port||'/dev/ttyACM0'} · OpenCR 식별 전`},
-        {level:motorLevel,title:`모터 응답 · ${motorLevel==='detected'?'검사 시 확인':motorLevel==='absent'?'일부/전체 미응답':'현재 미확인'}`,detail:motorText}
+        {level:motorLevel,title:`모터 응답 · ${motorLevel==='detected'?probe?.source==='read_only_watch'?'읽기 전용 관측':'수동 검사 시 확인':motorLevel==='absent'?'일부/전체 미응답':'현재 미확인'}`,detail:motorText}
       ];
       const container=$('connectionChecks'),signature=JSON.stringify(rows);
       if(container.dataset.signature===signature)return;
@@ -436,7 +436,7 @@
       state.workspaceMode=mode;state.pendingPort=null;document.body.dataset.workspaceMode=mode;
       if(mode==='wiring'){state.yaw=-Math.PI*3/4;state.pitch=.25;$('cameraView').value='sockets';}
       document.querySelectorAll('[data-workspace-mode]').forEach(button=>{const active=button.dataset.workspaceMode===mode;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
-      const prompts={assembly:state.assemblyTool==='connect'?'체결: 모터 회전축을 선택하거나 브라켓 판을 선택해 본체 체결면을 표시하세요.':'배치·회전: 선택한 부품의 핸들을 드래그하세요.',wiring:'USB 선은 별도입니다. OpenCR 또는 모터의 3핀 소켓을 먼저 누른 뒤 상대 소켓을 누르세요. TTL 케이블은 필요하면 자동 추가됩니다.',motion:'체결된 상대 모터 몸체를 좌우 드래그하거나 ±90° 버튼으로 자세를 바꿉니다. 실제 모터는 움직이지 않습니다.',status:'화면 배선과 마지막 수동 스캔 결과는 서로 다른 상태입니다.'};
+      const prompts={assembly:state.assemblyTool==='connect'?'체결: 모터 회전축을 선택하거나 브라켓 판을 선택해 본체 체결면을 표시하세요.':'배치·회전: 선택한 부품의 핸들을 드래그하세요.',wiring:'USB 선은 별도입니다. OpenCR 또는 모터의 3핀 소켓을 먼저 누른 뒤 상대 소켓을 누르세요. TTL 케이블은 필요하면 자동 추가됩니다.',motion:'체결된 상대 모터 몸체를 좌우 드래그하거나 ±90° 버튼으로 자세를 바꿉니다. 실제 모터는 움직이지 않습니다.',status:'화면 배선과 실제 모터 관측은 다른 상태입니다. 관측 출처와 시각을 확인하세요.'};
       setMateStatus(prompts[mode]);draw();
     }
     function draw(){if(!state.motor||!state.bracket||!state.opencr||!state.laptop||!state.desk)return;updateConnections();resize();gl.enable(gl.DEPTH_TEST);gl.clearColor(.09,.13,.17,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);const aspect=canvas.width/canvas.height;let dist=state.distance;let eye=[Math.cos(state.pitch)*Math.sin(state.yaw)*dist,Math.sin(state.pitch)*dist,Math.cos(state.pitch)*Math.cos(state.yaw)*dist].map((value,i)=>value+state.cameraTarget[i]);let view=lookAt(eye,state.cameraTarget,[0,1,0]);let proj=perspective(Math.PI/4,aspect,.01,100);state.lastFrame={view,proj,eye};gl.uniformMatrix4fv(loc.view,false,new Float32Array(view));gl.uniformMatrix4fv(loc.proj,false,new Float32Array(proj));state.desk.forEach(item=>drawMesh(item.mesh,identity(),item.color));visibleParts().forEach(part=>drawMesh(partMesh(part),partModel(part),partColor(part)));for(const motor of state.parts.motor)for(const axis of ['A','B'])drawMesh(state.rotor,rotorModel(motor,axis),axis==='A'?[.42,.95,.81]:[1,.72,.35]);drawMesh(state.usbWire,usbLinkModel(),[.32,.54,.78]);updatePortOverlay();drawGizmo();renderMotorIdOverlay();renderAxisGuide();renderFitAudit();renderConnectionChecks();renderCableMeasurements();renderAssemblyBom();recordHistory();scheduleAutosave();if(state.auto&&autoFrame===null){autoFrame=requestAnimationFrame(()=>{autoFrame=null;state.yaw+=.008;draw();});}}

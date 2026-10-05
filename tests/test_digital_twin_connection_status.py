@@ -69,6 +69,33 @@ class ConnectionStatusTests(unittest.TestCase):
         self.save(age_seconds=30)
         self.assertFalse(serve.recent_motor_probe(self.bus)["fresh"])
 
+    def test_read_only_watch_becomes_stale_and_keeps_source(self):
+        payload = {
+            "source": "read_only_watch", "checked_at": time.time(),
+            "sequence": 4, "interval_seconds": 3,
+            "port": self.bus["port"], "protocol": 2.0,
+            "results": [{"id": 2, "baudrate": 57600, "present_position": 1034,
+                         "torque_enable": 0, "hw_error": 0, "operating_mode": 3,
+                         "valid": True}],
+        }
+        self.path.write_text(json.dumps(payload), encoding="utf-8")
+        probe = serve.recent_motor_probe(self.bus)
+        self.assertTrue(probe["fresh"])
+        self.assertEqual(probe["source"], "read_only_watch")
+        self.assertEqual(probe["sequence"], 4)
+        self.assertTrue(probe["motor_states"][0]["valid"])
+        payload["checked_at"] -= 10
+        self.path.write_text(json.dumps(payload), encoding="utf-8")
+        self.assertFalse(serve.recent_motor_probe(self.bus)["fresh"])
+
+    def test_invalid_watch_metadata_cannot_appear_live(self):
+        self.path.write_text(json.dumps({
+            "source": "read_only_watch", "checked_at": time.time(),
+            "sequence": 1, "interval_seconds": 0,
+            "port": self.bus["port"], "protocol": 2.0, "results": [],
+        }), encoding="utf-8")
+        self.assertIsNone(serve.recent_motor_probe(self.bus))
+
     def test_other_port_is_not_this_bus(self):
         self.save(port="/dev/ttyUSB0")
         self.assertIsNone(serve.recent_motor_probe(self.bus))

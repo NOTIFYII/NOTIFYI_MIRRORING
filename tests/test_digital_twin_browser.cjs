@@ -104,6 +104,28 @@ test('부품 수량표는 화면 수량과 연결 완료 수량을 구분한다'
   }
 });
 
+test('읽기 전용 모터 관측이 끊기면 같은 tick도 오래된 값으로 표시한다', async () => {
+  const { context, page } = await freshPage();
+  try {
+    let fresh = true;
+    await page.route('**/api/workspace', route => route.fulfill({ json: {
+      host: 'samsung', bus: { port: '/dev/ttyACM0', baudrate: 57600, protocol: 2.0 },
+      port_present: true, active_ids: [2], unused_ids: [], joints: [{ id: 2, name: 'waist', label: '허리', zero_position: 1034 }],
+      motor_probe: { source: 'read_only_watch', sequence: 7, checked_at: Date.now() / 1000,
+        age_seconds: fresh ? 1 : 12, fresh, responding_ids: [2],
+        motor_states: [{ id: 2, torque_enable: 0, present_position: 1040, hw_error: 0, valid: true }] },
+    } }));
+    await page.evaluate(() => loadWorkspaceStatus());
+    assert.match(await page.locator('#jointMap').innerText(), /읽기 전용 관측 #7/);
+    fresh = false;
+    await page.evaluate(() => loadWorkspaceStatus());
+    assert.match(await page.locator('#jointMap').innerText(), /관측 중단.*현재 상태 아님/);
+    assert.match(await page.locator('#jointMap').innerText(), /1040 ticks/);
+  } finally {
+    await context.close();
+  }
+});
+
 test('좁은 화면에서 작업 도구와 부품 목록이 겹치지 않는다', async () => {
   const { context, page } = await freshPage();
   try {

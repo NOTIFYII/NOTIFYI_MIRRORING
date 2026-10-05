@@ -25,7 +25,7 @@ STATUS_FILE = REPO_ROOT / "data/connection_status.json"
 
 
 def recent_motor_probe(bus: dict) -> dict | None:
-    """Read the last explicit scan; never open the serial port from this server."""
+    """Read a manual scan or watch snapshot; never open the serial port here."""
     try:
         payload = json.loads(STATUS_FILE.read_text(encoding="utf-8"))
         checked_at = float(payload["checked_at"])
@@ -34,6 +34,17 @@ def recent_motor_probe(bus: dict) -> dict | None:
             return None
         if payload["port"] != bus["port"] or float(payload["protocol"]) != float(bus["protocol"]):
             return None
+        source = payload.get("source", "manual_scan")
+        if source not in ("manual_scan", "read_only_watch"):
+            return None
+        if source == "read_only_watch":
+            interval = float(payload["interval_seconds"])
+            sequence = payload["sequence"]
+            if not math.isfinite(interval) or not 1 <= interval <= 30 or type(sequence) is not int or sequence < 1:
+                return None
+            freshness_limit = min(15.0, max(5.0, 2 * interval + 2))
+        else:
+            freshness_limit = 15.0
         age = max(0.0, now - checked_at)
         matching = [item for item in payload["results"]
                     if int(item["baudrate"]) == int(bus["baudrate"])]
@@ -43,16 +54,22 @@ def recent_motor_probe(bus: dict) -> dict | None:
             torque = item.get("torque_enable")
             position = item.get("present_position")
             error = item.get("hw_error")
-            motor_states.append({
+            state = {
                 "id": int(item["id"]),
                 "torque_enable": torque if type(torque) is int and torque in (0, 1) else None,
                 "present_position": position if type(position) is int else None,
                 "hw_error": error if type(error) is int and 0 <= error <= 255 else None,
-            })
+            }
+            if source == "read_only_watch":
+                mode = item.get("operating_mode")
+                state["operating_mode"] = mode if type(mode) is int else None
+                state["valid"] = item.get("valid") is True and state["present_position"] is not None
+            motor_states.append(state)
         return {"checked_at": checked_at, "age_seconds": round(age, 1),
-                "fresh": age <= 15, "responding_ids": ids,
+                "fresh": age <= freshness_limit, "responding_ids": ids,
                 "motor_states": motor_states,
-                "source": "manual_scan"}
+                "source": source,
+                "sequence": payload["sequence"] if source == "read_only_watch" else None}
     except (OSError, KeyError, ValueError, TypeError, OverflowError):
         return None
 
@@ -88,7 +105,7 @@ def workspace_snapshot() -> dict:
         "verification": {
             "board_identity": "unverified",
             "motor_power": "unverified",
-            "motor_response": "last_manual_scan" if probe and probe["fresh"] else "unverified",
+            "motor_response": probe["source"] if probe and probe["fresh"] else "unverified",
             "motor_motion": "unverified",
             "leds": "unverified",
         },

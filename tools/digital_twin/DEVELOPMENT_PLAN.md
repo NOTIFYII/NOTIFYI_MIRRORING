@@ -16,7 +16,7 @@
 
 ## 현재 구현과 정확한 한계
 
-- [`serve.py`](serve.py)는 시리얼 포트를 열지 않고 `data/connection_status.json`을 읽는다. 3초마다 화면 API를 새로 읽어도 **파일을 갱신하는 프로그램은 아니다**. 수동 스캔 후 15초가 지나면 현재 응답이 아닌 마지막 검사로 취급한다.
+- [`serve.py`](serve.py)는 시리얼 포트를 열지 않고 `data/connection_status.json`을 읽는다. 수동 스캔은 15초가 지나면 오래된 검사로 취급한다. 메인 제어가 **멈춘 상태**에서만 [`watch_dynamixel.py`](../../scripts/watch_dynamixel.py)가 시리얼 읽기와 상태 파일 갱신을 반복할 수 있다. 관측기를 종료하거나 파일 갱신이 끊기면 화면은 오래된 관측으로 전환한다. 실물 하드웨어에서의 장시간 운용 검증은 아직 하지 않았다.
 - [`scan_dynamixel.py`](../../scripts/scan_dynamixel.py)는 ID를 찾고 위치·토크 활성 여부·하드웨어 오류를 읽어 상태 파일로 저장할 수 있다. 메인 제어와 동시에 같은 `/dev/ttyACM0`를 열어서는 안 된다.
 - [`joint_writer.py`](../../src/robot/joint_writer.py)의 `read_positions()`는 메인 제어가 소유한 포트에서 ID 2~7의 현재 위치를 읽을 수 있다. 그러나 현재 브라우저용 연속 상태 게시 경로는 없다.
 - [`config/robot.yaml`](../../config/robot.yaml)은 OpenCR 브리지 `/dev/ttyACM0`, 57600bps, 프로토콜 2.0, 활성 ID 2~7을 지정한다. [`config/joints.yaml`](../../config/joints.yaml)은 ID별 zero·방향·상대 범위를 갖지만, 이는 **현재 설정값**이지 새 구조의 모든 실제 간섭·하중 검증 결과가 아니다.
@@ -69,7 +69,7 @@
 ## 추천 구현 순서
 
 1. 물리 A/B축↔ID 매핑표와 실물 조립 버전 고정.
-2. 삼성 노트북의 단일 포트 소유 프로세스에서 읽기 전용 상태 게시, stale/오류 UI와 단절 테스트.
+2. 삼성 노트북의 메인 제어 중지 상태에서 읽기 전용 관측기와 stale/오류 UI를 실물로 검증. 메인 제어 중 관측값 게시 경로는 별도 구현.
 3. 실제 각도로 3D 모델이 따라오는지 한 하우징부터 검증.
 4. 브라켓별 CAD 체결·회전 스윕과 조립판 판정 정확도 개선.
 5. 모바일/데스크톱 조작 작업 테스트와 회귀 JSON 확대.

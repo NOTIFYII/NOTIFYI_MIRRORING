@@ -33,9 +33,10 @@ angles:
   smoothing_alpha: 0.55     # 상체용. 0.55면 반응 빠르면서 떨림 억제
   neck_smoothing_alpha: 0.35  # 2D 비율은 Z축보다 안정적 → 적당히 반응
 
-# 로봇 상단에 카메라를 장착한 주 실험에서만 사용한다. 몸통이 숙여질 때
-# neck_pitch을 반대 방향으로 움직여 카메라가 정면을 유지하도록 한다.
-# 노트북 웹캠을 사용할 때는 실행 명령에 --no-camera-gimbal을 붙인다.
+# 새 6축 구조에서 카메라 보정 관절·방향을 실물로 확인하지 못해 기본 OFF.
+# 현재 관절 목록에는 neck_pitch가 없고 아래 joint는 neck_yaw다.
+# 카메라 pitch 안정화로 간주하거나 검증 없이 ON으로 바꾸지 않는다.
+# 노트북 웹캠을 사용할 때는 --no-camera-gimbal을 명시할 수 있다.
 camera_gimbal:
   enabled: false
   joint: neck_yaw
@@ -105,9 +106,8 @@ intervention:
   max_event_age_sec: 0.75  # 실행 직전 최신 자세와 이벤트 시각을 재확인
   poses:
     # 목·상체·어깨선 중 어느 항목이 나빠도 이 하나의 과장 포즈를 호출한다.
-    # 4개 몸통 관절에 분배되므로 작은 값은 겉으로 거의 보이지 않는다.
-    # 몸통 60도는 4개 관절에 분배된다. 목은 현재 관절 소프트 한계가
-    # 35도이므로 50도를 요청해도 실제 목표는 안전 게이트에서 제한된다.
+    # torso_pitch는 ID 3·5에, torso_yaw는 ID 2·4에 분배된다.
+    # neck_pitch_deg는 현재 distribution에 대상 관절이 없어 동작에 반영되지 않는다.
     bad_posture:
       torso_pitch_deg: 60.0
       neck_pitch_deg: 35.0

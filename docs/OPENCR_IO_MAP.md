@@ -131,6 +131,8 @@ GPIO는 기본적으로 3.3V 논리이며, 공식 문서의 `FT` 표기가 있�
 
 현재 `tools/digital_twin/serve.py`는 프로젝트 YAML에서 ID 매핑을 읽고, 실행한 컴퓨터에서 `/dev/ttyACM0` 경로가 존재하는지 검사한다. 별도 수동 `scripts/scan_dynamixel.py --status-file data/connection_status.json` 결과가 있으면 설정된 baud에서 응답한 모터 ID와 검사 시각을 표시한다. 15초가 지난 결과는 **현재 연결됨**으로 표시하지 않는다. USB 장치가 OpenCR인지, 외부 모터 전원이 계속 유지되는지, 현재 관절이 움직이는지는 확인하지 않는다. 메인 `src.main` 실행 중에는 별도 스캔으로 시리얼 포트를 동시에 열지 않는다. 실측 위치를 화면과 동기화하려면 제어 프로그램 한 곳이 `Present Position`을 읽어 별도 읽기 전용 상태 채널로 게시해야 한다. 명령 목표 위치를 실제 이동으로 대체 표시하지 않는다. 하우징별 물리 ID 쌍도 아직 미확정이다.
 
+실물 위치를 3D에 계속 반영하는 단계와 브라우저에서 실제 모터를 움직이는 단계를 분리한 완료 조건은 [디지털 트윈 개발 계획](../tools/digital_twin/DEVELOPMENT_PLAN.md)에 있다. 현 `usb_to_dxl` 펌웨어가 자체 충돌 검사나 안전 정지를 수행한다고 가정하지 않는다.
+
 1. OpenCR 전원만 연결하고 USB로 보드 포트를 확인한다.
 2. DYNAMIXEL 전원을 끈 상태에서 모터의 TTL 3핀 커넥터와 보드 긴 변의 TTL 3핀/RS-485 4핀 라벨을 대조한다. 모터 단자 전압이 허용 범위인지 확인한다.
 3. 2XL430 한 개만 연결해 ID·baud·protocol 2.0을 읽는다.

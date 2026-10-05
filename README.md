@@ -20,7 +20,7 @@
 - 로봇 탑재 USB 카메라 중심의 MediaPipe 자세 인식
 - 노트북 웹캠 보조 입력
 - Dynamixel 2XL430-W250 6축 pitch/yaw/roll 컬럼 제어
-- 카메라 탑재를 고려한 neck_pitch 짐벌 보정
+- 카메라 탑재를 고려한 짐벌 보정 경로(현재 설정 기본 비활성화, 새 축 배치에서 실물 검증 전)
 - SafetyGate, slew 제한, safe stop
 - 실험 효과 평가용 JSONL 이벤트와 CSV 요약
 
@@ -44,13 +44,13 @@ source .venv/bin/activate
 # 카메라·인식만 확인하는 dry-run
 python -m src.main --no-preview
 
-# 로봇 카메라와 모터를 함께 사용하는 실험
+# 로봇 카메라와 모터를 함께 사용하는 실험(기구·ID·안전 확인 후)
 python -m src.main --no-preview --move \
   --condition posture_trigger \
   --camera /dev/video0 \
   --participant-id P01
 
-# 노트북 웹캠을 사용할 때는 탑재 카메라 짐벌 보정을 끈다
+# 노트북 웹캠에서는 짐벌 보정을 명시적으로 끈다
 python -m src.main --no-preview --move \
   --condition posture_trigger \
   --camera /dev/video0 \
@@ -73,17 +73,16 @@ python -m src.main --no-preview --move \
 | 유휴축 | 1, 8 | 현재 미사용 |
 
 자세와 모터의 기준값은 config/joints.yaml과 config/posture.yaml에서 관리한다.
-현재 zero_position은 연결된 상태의 초기 기준값이며, 로봇을 정상 자세로 세운 뒤
-다시 측정해야 한다. 새 축의 방향은 실제 단축 테스트 후 direction을 확정한다.
+현재 zero_position은 스캔값을 기준으로 잡은 초기 설정이며 실물의 절대 원점이나 자동 복구 위치가 아니다. 각 축의 부호·운용각과 한 2XL 하우징의 A/B축↔ID 쌍은 단축 테스트로 확인해야 한다. 특히 ID 5·6은 0/4095 tick 경계를 가로지른다.
 
-모터를 연결하기 전에는 다음을 먼저 확인한다.
+모터 구동 전에는 메인 제어를 중지한 상태에서 다음을 먼저 확인한다.
 
 ~~~bash
 python scripts/scan_dynamixel.py --port /dev/ttyACM0 --baud 57600 --proto 2.0
 python scripts/check_env.py
 ~~~
 
-ID 누락, 속도 제어 모드, hardware error, 기계적 범위 이탈이 있으면 --move로 실행하지 않는다.
+활성 ID 2~7의 누락, 속도 제어 모드, hardware error, 기계적 범위 이탈이 있으면 --move로 실행하지 않는다. ID 1·8은 현재 유휴다. 새 조립은 3D 조립판의 한 예제에서 ±30° 간섭이 확인됐으므로 화면의 가동각을 실물 안전각으로 사용하지 않는다.
 
 ## 로그와 효과 평가
 
@@ -106,6 +105,8 @@ python scripts/summarize_posture_logs.py \
 자세 로그의 정의와 해석상 한계는 docs/EXPERIMENT_LOGGING.md에 정리했다.
 
 ## 문서
+
+- 문서별 현재 구현/설계안 구분과 읽는 순서: docs/README.md
 
 - 아키텍처와 현재 하드웨어: docs/ARCHITECTURE.md
 - 빠른 시작: docs/QUICKSTART.md
@@ -131,7 +132,8 @@ python scripts/summarize_posture_logs.py \
 - 탁상용 로봇 벤치마크: docs/BENCHMARK_DESKTOP_ROBOTS.md
 - 공학·디자인 설계 조사: docs/DESKTOP_ROBOT_DESIGN_RESEARCH.md
 - OpenCR 입출력과 Notifyi 연결안: docs/OPENCR_IO_MAP.md
-- 로컬 3D 디지털 트윈: tools/digital_twin/index.html
+- 로컬 3D 디지털 트윈 사용법: tools/digital_twin/README.md
+- 실물 모터 읽기 동기화·조립판 개발 계획: tools/digital_twin/DEVELOPMENT_PLAN.md
 
 ## 개발 원칙
 

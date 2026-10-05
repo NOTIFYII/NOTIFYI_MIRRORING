@@ -10,14 +10,14 @@
 
 ## config/robot.yaml
 
-- bus.port: 직렬 장치 경로
-- bus.baudrate: 현재 1000000
+- bus.port: 현재 `/dev/ttyACM0` (`usb_to_dxl` 브리지)
+- bus.baudrate: 현재 57600
 - bus.protocol: 현재 2.0
 - motors.ids: 버스에 연결된 전체 ID
 - motors.active_ids: 구조에 연결되어 제어할 ID
 - motors.unused_ids: 물리적으로 사용하지 않는 축
 
-전체 ID와 active_ids를 혼동하지 않는다. 현재 전체 모터는 10개지만 메인 제어는 5개다.
+전체 ID와 active_ids를 혼동하지 않는다. 현재 버스 ID는 1~8, 제어 대상은 2~7의 6축이다. 한 2XL 하우징의 A/B 물리 ID 쌍은 별도 확인 전이다.
 
 ## config/joints.yaml
 
@@ -28,10 +28,10 @@
 - zero_position
 - min_position
 - max_position
-- mechanical_min
-- mechanical_max
+- relative_min_deg, relative_max_deg: zero 기준 상대 제한(현재 잠정값)
+- wrap_position: 0/4095 경계에서 한 바퀴 감김 처리
 
-zero_position이 운용 범위 밖이면 매핑 초기화가 실패해야 한다. direction을 바꾸면 실제 조립 방향과 맞는지 단일 관절로 확인한다.
+현재 설정의 `min_position: 0`, `max_position: 4095`는 모터 위치 제어 한 바퀴 범위이며 검증된 **기구적 끝각**이 아니다. `mechanical_min/max` 필드는 현 설정에 없다. zero가 이 범위 밖이면 매핑 초기화가 실패해야 한다. ID 5·6은 zero가 경계 근처라 `wrap_position: true`를 사용한다. direction·상대 범위를 바꾸면 단일 관절로 실물 방향과 간섭을 확인한다.
 
 ## config/posture.yaml
 
@@ -45,7 +45,7 @@ zero_position이 운용 범위 밖이면 매핑 초기화가 실패해야 한다
 
 ### camera_gimbal
 
-탑재 카메라 보정 여부와 보정 관절을 설정한다. 노트북 웹캠에서는 실행 옵션으로 끈다.
+탑재 카메라 보정 여부와 보정 관절을 설정한다. **현재 기본값은 false**이며 새 6축 기구에서 실물 검증 전이다. 노트북 웹캠에서는 실행 옵션으로도 끈다.
 
 ### motion
 
@@ -86,8 +86,8 @@ git diff --check
 
 ~~~text
 config/robots/
-  notifyi_legacy_5dof.yaml
-  notifyi_free_axis.yaml
+  notifyi_legacy_5dof.yaml  # 제안 경로, 현재 파일 없음
+  notifyi_free_axis.yaml     # 제안 경로, 현재 파일 없음
 config/motions/
   posture_trigger/
   adaptive_mirror/

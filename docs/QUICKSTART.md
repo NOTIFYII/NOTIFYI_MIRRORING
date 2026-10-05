@@ -8,18 +8,15 @@
 
 ~~~bash
 cd ~/Desktop/posture_robot_proto
-source .venv/bin/activate
-git status
-git pull --ff-only origin minwook
+./.venv/bin/python --version
 ~~~
 
-원격 저장소 이름이 notifyi라면 마지막 명령의 origin을 notifyi로 바꾼다. 로컬 변경이 있으면 먼저 저장하거나 별도 브랜치로 옮긴다.
+삼성 노트북의 실제 폴더가 다르면 경로를 바꾼다. 이후 예시의 `./.venv/bin/python`은 프로젝트 가상환경을 직접 지정하므로 셸에서 `python` 명령이 없어도 실행된다. 코드를 업데이트하는 절차는 Git 인증/작업 트리 상태를 확인한 뒤 별도로 수행한다.
 
 ## 2. 환경 점검
 
 ~~~bash
-python --version
-python scripts/check_env.py
+./.venv/bin/python scripts/check_env.py
 ~~~
 
 check_env.py에서 카메라와 모터 버스가 모두 연결되지 않아도, 현재 테스트 단계에서는 실패 원인을 확인하는 용도로 사용할 수 있다. 실제 모터 구동 전에는 Dynamixel 스캔을 별도로 통과해야 한다.
@@ -36,19 +33,19 @@ v4l2-ctl --list-devices
 ## 4. 모터 읽기 전용 확인
 
 ~~~bash
-python scripts/scan_dynamixel.py \
-  --port /dev/ttyUSB0 \
-  --baud 1000000
+./.venv/bin/python scripts/scan_dynamixel.py \
+  --port /dev/ttyACM0 \
+  --baud 57600 --proto 2.0
 ~~~
 
-ID 1, 4, 5, 8, 9가 응답하고, 사용 모터가 위치 제어 모드이며, hardware error가 0인지 확인한다.
+OpenCR `usb_to_dxl` 브리지를 쓰는 현 설정이다. 활성 ID **2~7** 모두 응답하고 위치 제어 모드·hardware error 0인지 확인한다. ID 1·8은 유휴다. 스캔 전에는 메인 제어와 Dynamixel Wizard 등 포트를 쓰는 프로그램을 종료한다. 새 기구의 부호·브라켓 간섭이 미검증이면 스캔이 정상이어도 구동하지 않는다.
 
 ## 5. dry-run
 
 모터에 명령을 쓰지 않고 카메라와 자세 판정만 확인한다.
 
 ~~~bash
-python -m src.main --no-preview \
+./.venv/bin/python -m src.main --no-preview \
   --condition posture_trigger \
   --camera /dev/video0 \
   --no-camera-gimbal
@@ -58,10 +55,10 @@ python -m src.main --no-preview \
 
 ## 6. 실제 실행
 
-모터가 세워진 상태이고 스캔 결과가 정상일 때만 실행한다.
+기구를 안정적으로 지지하고 ID 매핑·부호·운용 범위·케이블/브라켓 간섭까지 확인했을 때만 실행한다. 현재 3D 예제는 ±30° 간섭이 있으므로 그대로 구동 테스트에 사용하지 않는다.
 
 ~~~bash
-python -m src.main --no-preview --move \
+./.venv/bin/python -m src.main --no-preview --move \
   --condition posture_trigger \
   --camera /dev/video0 \
   --participant-id P01

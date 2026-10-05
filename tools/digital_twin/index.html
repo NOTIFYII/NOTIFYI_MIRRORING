@@ -40,6 +40,7 @@
           <p id="mateStatus" class="editor-note" aria-live="polite">브라켓 판→한 모터 본체, 포크→다른 모터의 한 축을 선택하세요. 포크는 혼과 아이들러 두 면에 함께 걸립니다.</p>
           <div class="toolbar"><button id="resetPartBtn">선택 부품 초기 위치</button><button id="resetAllBtn">전체 초기 배치</button></div>
           <p class="editor-note">본체 회전은 배치 방향이고 A/B 회전은 축 동작입니다. 결합된 자식 모터의 본체 위치와 방향은 부모 연결이 결정합니다.</p><p id="fitAudit" class="editor-note" role="status">STEP 간섭 검토: 조립 구성 선택 전</p>
+          <details id="fitAuditDetails" class="fit-audit-details"><summary>브라켓별 검증 범위 보기</summary><div id="fitAuditList"></div></details>
         </div>
       </div>
     </section>
@@ -61,6 +62,7 @@
     </aside>
   </main>
   <script src="./project_state.js?v=desk-y0-20261005"></script>
-  <script src="./workspace.js?v=placement-angles-20261005"></script>
+  <script src="./fit_audit.js?v=bracket-scope-20261005"></script>
+  <script src="./workspace.js?v=bracket-scope-20261005"></script>
 </body>
 </html>

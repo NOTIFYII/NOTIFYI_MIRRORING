@@ -406,12 +406,25 @@
     }
     function draw(){if(!state.motor||!state.bracket||!state.opencr||!state.laptop||!state.desk)return;updateConnections();resize();gl.enable(gl.DEPTH_TEST);gl.clearColor(.09,.13,.17,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);const aspect=canvas.width/canvas.height;let dist=state.distance;let eye=[Math.cos(state.pitch)*Math.sin(state.yaw)*dist,Math.sin(state.pitch)*dist,Math.cos(state.pitch)*Math.cos(state.yaw)*dist].map((value,i)=>value+state.cameraTarget[i]);let view=lookAt(eye,state.cameraTarget,[0,1,0]);let proj=perspective(Math.PI/4,aspect,.01,100);state.lastFrame={view,proj,eye};gl.uniformMatrix4fv(loc.view,false,new Float32Array(view));gl.uniformMatrix4fv(loc.proj,false,new Float32Array(proj));state.desk.forEach(item=>drawMesh(item.mesh,identity(),item.color));visibleParts().forEach(part=>drawMesh(partMesh(part),partModel(part),partColor(part)));for(const motor of state.parts.motor)for(const axis of ['A','B'])drawMesh(state.rotor,rotorModel(motor,axis),axis==='A'?[.42,.95,.81]:[1,.72,.35]);drawMesh(state.usbWire,usbLinkModel(),[.32,.54,.78]);updatePortOverlay();drawGizmo();renderMotorIdOverlay();renderAxisGuide();renderFitAudit();renderConnectionChecks();recordHistory();scheduleAutosave();if(state.auto&&autoFrame===null){autoFrame=requestAnimationFrame(()=>{autoFrame=null;state.yaw+=.008;draw();});}}
     function renderFitAudit(){
-      const legacy=state.parts.bracket.find(part=>['top','bottom'].includes(part.mates.plate?.face));
-      const example=state.parts.bracket.find(part=>part.rootSide==='plate'&&part.mates.plate?.face==='front'&&part.mates.fork?.axis==='A');
+      const audits=state.parts.bracket.map(bracket=>({bracket,audit:NotifyiFitAudit.assess(bracket,state.parts.motor)}));
+      const invalid=audits.filter(({audit})=>audit.holes.status==='invalid');
+      const interference=audits.filter(({audit})=>audit.sweep.status==='interference');
       const target=$('fitAudit');
-      target.dataset.verdict=legacy?'invalid':example?'interference':'unverified';
-      target.textContent=legacy?'체결 불가 · 윗면/아랫면 기존 결합에는 제공 STEP과 맞는 판 체결 홀이 없습니다. 연결을 해제하세요.':example?'부분 확인 / 간섭 확인 · +Z면 판 홀 4개는 정렬됩니다. 이 예제는 A축 ±30°에서 브라켓과 회전 모터 본체가 겹칩니다. 다른 각도와 실물 안전성은 검증되지 않았습니다.':'미검증 · +Z면 판 홀 4개 정렬만 별도 확인됐습니다. 현재 조립의 체결면·회전 경로는 검증되지 않았습니다.';
-      target.classList.toggle('fit-warning',Boolean(legacy||example));
+      target.dataset.verdict=invalid.length?'invalid':interference.length?'interference':'unverified';
+      target.textContent=invalid.length?`체결 불가 · 브라켓 ${invalid.map(({bracket})=>'#'+(state.parts.bracket.indexOf(bracket)+1)).join(', ')}의 판 체결면에 STEP 홀 패턴이 없습니다. 다른 체결면과 실물 안전성은 별도 검증이 필요합니다.`:interference.length?`부분 확인 / 간섭 확인 · 브라켓 ${interference.map(({bracket})=>'#'+(state.parts.bracket.indexOf(bracket)+1)).join(', ')}의 참조 배치는 A축 ±30°에서 간섭합니다. 다른 각도·브라켓·실물 안전성은 검증되지 않았습니다.`:'미검증 · 현재 조립의 모든 체결면·회전 경로를 검사한 결과가 아닙니다. 브라켓별 검증 범위를 확인하세요.';
+      target.classList.toggle('fit-warning',Boolean(invalid.length||interference.length));
+      const list=$('fitAuditList');list.replaceChildren();
+      const labels={holes:'판 홀 정렬',static:'정적 간섭',sweep:'회전 간섭',wiring:'배선 여유'};
+      const statuses={invalid:'체결 불가',limited:'부분 확인',interference:'간섭 확인',unverified:'미검증'};
+      for(const {bracket,audit} of audits){
+        const card=document.createElement('div');card.className='fit-audit-card';
+        const heading=document.createElement('strong');heading.textContent=`브라켓 #${state.parts.bracket.indexOf(bracket)+1} · 판 ${audit.plateMotorId||'미연결'} / 포크 ${audit.forkMotorId||'미연결'}`;card.append(heading);
+        for(const [key,label] of Object.entries(labels)){
+          const item=audit[key],line=document.createElement('p');line.dataset.status=item.status;
+          line.textContent=`${label}: ${statuses[item.status]} · ${item.detail}`;card.append(line);
+        }
+        list.append(card);
+      }
     }
     let axisGuideMarkup='';
     function renderAxisGuide(){

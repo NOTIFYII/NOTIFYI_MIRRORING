@@ -80,6 +80,9 @@ test('체결 예제는 부분 확인과 회전 간섭을 함께 알리고 실제
     await page.locator('#exampleAssemblyBtn').click();
     assert.equal(await page.locator('#fitAudit').getAttribute('data-verdict'), 'interference');
     assert.match(await page.locator('#fitAudit').innerText(), /±30°/);
+    await page.locator('#fitAuditDetails').evaluate(node => { node.open = true; });
+    assert.match(await page.locator('#fitAuditList').innerText(), /브라켓 #1/);
+    assert.match(await page.locator('#fitAuditList').innerText(), /배선 여유: 미검증/);
     await page.locator('[data-workspace-mode=motion]').click();
     assert.match(await page.locator('.joint-preview-note').innerText(), /실물 ID별 허용각/);
   } finally {

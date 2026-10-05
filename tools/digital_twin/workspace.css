@@ -26,6 +26,12 @@ body[data-workspace-mode=status] .assembly-tools { display:none; }
 .stage-panel .viewport canvas.dragging { cursor:grabbing; }
 .badge { top:auto; bottom:12px; left:16px; font-size:10px; }
 .fit-warning { color:#ffd6a4; border-left:3px solid #ef9c48; padding-left:8px; }
+.fit-audit-details { margin-top:10px; padding:8px 10px; border:1px solid #36505d; border-radius:8px; font-size:11px; }
+.fit-audit-details summary { cursor:pointer; color:#d9f7ef; }
+.fit-audit-card { margin-top:10px; padding-top:8px; border-top:1px solid #36505d; }
+.fit-audit-card strong { display:block; margin-bottom:5px; }
+.fit-audit-card p { margin:5px 0; line-height:1.4; }
+.fit-audit-card [data-status="interference"], .fit-audit-card [data-status="invalid"] { color:#ffd6a4; }
 .controls #fitAudit { padding:8px 10px; border:1px solid #435665; border-radius:8px; background:#15232c; line-height:1.5; }
 .controls #fitAudit[data-verdict="interference"],.controls #fitAudit[data-verdict="invalid"] { border-color:#ad7849; background:#35271e; }
 .joint-preview-note { display:none; color:#ffd6a4; font-size:11px; line-height:1.45; }

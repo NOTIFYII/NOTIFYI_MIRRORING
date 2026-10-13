@@ -45,6 +45,16 @@ main()
     assert "voice" not in result.stdout and "mirror" not in result.stdout
 
 
+def test_head_range_accepts_confirmed_posture_and_rejects_outside_30_degrees():
+    _, mapper, _ = mapping()
+    assert mapper.within_limits("head_pitch", 1121)
+    for position in (1022 - 341, 1022 + 341):
+        assert mapper.within_limits("head_pitch", position)
+    for position in (1022 - 342, 1022 + 342):
+        assert not mapper.within_limits("head_pitch", position)
+    assert mapper.neutral_targets()["head_pitch"] == 1022
+
+
 def test_main_yaml_still_maps_only_two_driven_ids():
     config, mapper, gate = mapping()
     assert mapper.joint_ids() == {"body_pitch": 2, "head_pitch": 3}

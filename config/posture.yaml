@@ -26,7 +26,7 @@ perception:
 
 angles:
   max_torso_pitch_deg: 30   # ID 2에서 확인된 s 방향 최대 시험 범위
-  max_neck_pitch_deg: 2     # ID 3의 방향만 확인됨; 범위는 임시 제한
+  max_neck_pitch_deg: 2     # 피드백 동작 출력 제한; 관절 운용 범위 ±30도와 별개
   max_torso_yaw_deg: 30
   max_torso_roll_deg: 30
   max_neck_yaw_deg: 30

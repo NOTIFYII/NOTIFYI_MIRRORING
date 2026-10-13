@@ -33,7 +33,7 @@ joints:
   head_pitch:
     id: 3
     group: neck
-    role: head
+    role: neck
     input_axis: neck_pitch
     direction: 1              # 입력 + 방향이 텔레옵 w 방향
     zero_position: 1022

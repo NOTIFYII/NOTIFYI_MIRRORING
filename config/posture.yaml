@@ -41,12 +41,9 @@ camera_gimbal:
   enabled: false
   joint: head_pitch
 
-# 입력 축을 실제 관절에 연결한다. 현재는 몸통·머리 pitch만 구동한다.
+# 몸통 입력을 body_pitch에 보내고, 목 입력은 role: neck 관절에 보낸다.
 distribution:
-  torso_pitch:
-    body_pitch: 1.0
-  neck_pitch:
-    head_pitch: 1.0
+  body_pitch: 1.0
 
 motion:
   profile_velocity: 40

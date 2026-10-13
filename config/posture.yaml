@@ -58,14 +58,6 @@ motion:
   # return_seconds=2.0, release_seconds=1.0 을 쓴다. 실환경에서는 위 값이
   # 적용된다. 테스트가 config 를 직접 읽지 않는 것은 의도적이다.
 
-# --move 시작 시 zero_position으로 천천히 이동한다. 범위 밖이거나
-# 제한시간 안에 도달하지 못하면 자세 반응을 시작하지 않는다.
-startup_initialization:
-  enabled: true
-  timeout_sec: 10.0
-  tolerance_ticks: 15
-  settle_sec: 0.3
-
 # 교정 판단 정책. BehaviorManager 가 이 값을 읽는다.
 correction:
   sustain_seconds: 3.0      # 나쁜 자세가 이만큼 지속돼야 교정 트리거

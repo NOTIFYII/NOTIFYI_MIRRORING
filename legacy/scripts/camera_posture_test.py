@@ -9,9 +9,9 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from src.offline_pipeline import PoseFeatures, classify_posture  # noqa: E402
+from legacy.src.offline_pipeline import PoseFeatures, classify_posture  # noqa: E402
 
 
 NOSE = 0
@@ -287,4 +287,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

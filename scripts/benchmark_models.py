@@ -6,8 +6,8 @@
 사람이 움직이면 비교가 무의미하므로 측정 중에는 정지해 있어야 한다.
 
 사용법:
-    ~/dynamixel-venv/bin/python scripts/benchmark_models.py
-    ~/dynamixel-venv/bin/python scripts/benchmark_models.py --seconds 15
+    .venv-mp-pi3/bin/python scripts/benchmark_models.py
+    .venv-mp-pi3/bin/python scripts/benchmark_models.py --seconds 15
 """
 
 import argparse

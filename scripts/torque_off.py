@@ -6,8 +6,8 @@
 세우는데, 그걸 오류로 취급하면 정작 복구가 불가능해진다.
 
 사용법:
-    ~/dynamixel-venv/bin/python scripts/torque_off.py
-    ~/dynamixel-venv/bin/python scripts/torque_off.py --clear-errors
+    .venv-mp-pi3/bin/python scripts/torque_off.py
+    .venv-mp-pi3/bin/python scripts/torque_off.py --clear-errors
 """
 
 import argparse
@@ -22,7 +22,7 @@ try:
         BusError, describe_hardware_error, open_bus, ping_all,
     )
 except ImportError as exc:
-    sys.exit(f"{exc}\n  ~/dynamixel-venv/bin/python 으로 실행하세요.")
+    sys.exit(f"{exc}\n  .venv-mp-pi3/bin/python 으로 실행하세요.")
 
 ADDR_HARDWARE_ERROR = 70
 ADDR_TORQUE_ENABLE = 64

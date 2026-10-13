@@ -7,8 +7,8 @@
 명령행에서 직접 지정해야 한다.
 
 사용법:
-    ~/dynamixel-venv/bin/python scripts/spin_motors.py --ids 1 2          # 계획만 출력
-    ~/dynamixel-venv/bin/python scripts/spin_motors.py --ids 1 2 --go     # 실제로 돌린다
+    .venv-mp-pi3/bin/python scripts/spin_motors.py --ids 1 2          # 계획만 출력
+    .venv-mp-pi3/bin/python scripts/spin_motors.py --ids 1 2 --go     # 실제로 돌린다
 """
 
 import argparse
@@ -16,7 +16,7 @@ import sys
 import time
 from pathlib import Path
 
-VENV_HINT = "~/dynamixel-venv/bin/python"
+VENV_HINT = ".venv-mp-pi3/bin/python"
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

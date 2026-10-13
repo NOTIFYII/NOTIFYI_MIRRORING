@@ -8,17 +8,17 @@ EEPROM 쓰기는 Torque Enable 이 0 일 때만 허용되므로, 토크가 걸�
 사용법:
 
     # 전체 모터 Return Delay Time 을 0 으로
-    ~/dynamixel-venv/bin/python scripts/configure_dynamixel.py --return-delay 0 --apply
+    .venv-mp-pi3/bin/python scripts/configure_dynamixel.py --return-delay 0 --apply
 
     # ID 106 -> 4, 111 -> 5
-    ~/dynamixel-venv/bin/python scripts/configure_dynamixel.py --set-id 106:4 --set-id 111:5 --apply
+    .venv-mp-pi3/bin/python scripts/configure_dynamixel.py --set-id 106:4 --set-id 111:5 --apply
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-VENV_HINT = "~/dynamixel-venv/bin/python"
+VENV_HINT = ".venv-mp-pi3/bin/python"
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

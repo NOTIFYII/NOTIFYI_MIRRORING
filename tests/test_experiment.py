@@ -1,15 +1,14 @@
-"""실험 로그와 TTS 큐 테스트. 하드웨어·스피커 없이 돈다."""
+"""현재 자세 반응 로그 테스트. 하드웨어 없이 돈다."""
 
 import json
 
-from src.audio.tts import SpeechQueue
 from src.telemetry.event_log import EventLogger
 from src.telemetry.response_tracker import ResponseTracker
 
 
 class TestResponseTracker:
     def test_records_response_and_maintenance(self, tmp_path):
-        logger = EventLogger(tmp_path, condition="mirror", session_id="responded")
+        logger = EventLogger(tmp_path, condition="posture_trigger", session_id="responded")
         tracker = ResponseTracker(logger, response_timeout_sec=15.0)
         base = logger.started_at
 
@@ -29,7 +28,7 @@ class TestResponseTracker:
         assert rows[3]["good_duration_sec"] == 7.5
 
     def test_timeout_records_ignored_intervention(self, tmp_path):
-        logger = EventLogger(tmp_path, condition="voice", session_id="ignored")
+        logger = EventLogger(tmp_path, condition="posture_trigger", session_id="ignored")
         tracker = ResponseTracker(logger, response_timeout_sec=5.0)
         base = logger.started_at
 
@@ -40,19 +39,3 @@ class TestResponseTracker:
         rows = [json.loads(line) for line in logger.path.read_text().splitlines()]
         assert rows[2]["event"] == "intervention_ignored"
         assert rows[2]["reason"] == "timeout"
-
-
-class TestSpeechQueue:
-    def test_disabled_queue_is_a_noop(self):
-        speaker = SpeechQueue({"enabled": False})
-        assert speaker.submit("안내") is False
-
-    def test_duplicate_text_is_suppressed_during_cooldown(self):
-        speaker = SpeechQueue({
-            "enabled": True,
-            "command": ["fake-tts"],
-            "cooldown_sec": 8.0,
-        })
-        assert speaker.submit("안내", now=10.0) is True
-        assert speaker.submit("안내", now=15.0) is False
-        assert speaker.submit("안내", now=19.0) is True

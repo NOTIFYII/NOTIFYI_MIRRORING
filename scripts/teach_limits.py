@@ -2,7 +2,7 @@
 """토크를 끈 채 손으로 움직이며 각 관절의 가동범위를 기록한다 (백드라이브 티칭).
 
 모터로 기계적 스톱까지 밀면 그 순간 부하가 최대로 걸려 과부하 에러가 난다.
-토크를 끄고 손으로 움직이면 모터가 힘을 쓰지 않으므로 그 위험이 없고, 5축을
+토크를 끄고 손으로 움직이면 모터가 힘을 쓰지 않으므로 그 위험이 없고, 설정된 축을
 한 번에 훑을 수 있다.
 
 관절을 양쪽 끝까지 천천히 움직이면 최소·최대가 자동으로 갱신된다.
@@ -12,8 +12,8 @@
 주의: 토크가 꺼져 있어 컬럼이 중력으로 처진다. 손으로 받치면서 하세요.
 
 사용법:
-    ~/dynamixel-venv/bin/python scripts/teach_limits.py
-    ~/dynamixel-venv/bin/python scripts/teach_limits.py --write
+    .venv-mp-pi3/bin/python scripts/teach_limits.py
+    .venv-mp-pi3/bin/python scripts/teach_limits.py --write
 """
 
 import argparse
@@ -31,7 +31,7 @@ try:
         read_hardware_error,
     )
 except ImportError as exc:
-    sys.exit(f"{exc}\n  ~/dynamixel-venv/bin/python 으로 실행하세요.")
+    sys.exit(f"{exc}\n  .venv-mp-pi3/bin/python 으로 실행하세요.")
 
 ADDR_TORQUE_ENABLE = 64
 ADDR_PRESENT_POSITION = 132

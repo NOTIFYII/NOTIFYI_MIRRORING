@@ -10,9 +10,9 @@ from pathlib import Path
 
 import yaml
 
-from src.perception.posture_features import PostureReference
+from legacy.src.perception.posture_reference import PostureReference
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 CALIBRATION_PATH = PROJECT_ROOT / "data" / "calibration.yaml"
 
 

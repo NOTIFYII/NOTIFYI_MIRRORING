@@ -14,7 +14,7 @@ import yaml
 try:
     from dynamixel_sdk import PortHandler, PacketHandler, COMM_SUCCESS
 except ImportError:
-    # 프리뷰·캘리브레이션·하드웨어 없는 테스트는 SDK 없이도 실행한다.
+    # 프리뷰·하드웨어 없는 테스트는 SDK 없이도 실행한다.
     # 실제 버스 사용 시 open_bus()에서 명확한 BusError를 낸다.
     PortHandler = None
     PacketHandler = None
@@ -33,7 +33,7 @@ def _require_sdk():
     if PortHandler is None or PacketHandler is None:
         raise BusError(
             "dynamixel_sdk 를 찾을 수 없습니다. "
-            "~/dynamixel-venv/bin/python 으로 실행하거나 "
+            ".venv-mp-pi3/bin/python 으로 실행하거나 "
             "pip install -r requirements.txt 를 먼저 실행하세요."
         )
 
@@ -55,12 +55,6 @@ def load_joints(path=JOINTS_CONFIG):
         return {}
     config = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
     return config.get("joints") or {}
-
-
-def configured_ids(config=None):
-    """버스에 물려 있는 전체 ID. 스캔 결과와 대조할 때 쓴다."""
-    config = config or load_robot_config()
-    return list((config.get("motors") or {}).get("ids") or [])
 
 
 def active_ids(config=None):
@@ -110,6 +104,14 @@ def ping_all(packet, port):
     """buscast ping. {id: [model_number, firmware]} 를 돌려준다."""
     found, _ = packet.broadcastPing(port)
     return found
+
+
+def check(comm, err, packet, what):
+    """스크립트가 공유하는 SDK 통신/모터 오류 검사."""
+    if comm != COMM_SUCCESS:
+        raise RuntimeError(f"{what}: 통신 실패 - {packet.getTxRxResult(comm)}")
+    if err:
+        raise RuntimeError(f"{what}: 모터 오류 - {packet.getRxPacketError(err)}")
 
 
 def install_signal_guards():

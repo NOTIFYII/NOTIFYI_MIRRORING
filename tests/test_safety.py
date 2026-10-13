@@ -7,7 +7,7 @@ from src.robot.joint_mapper import (  # noqa: E402
     TICKS_PER_DEG, JointMapper, MappingError,
 )
 from src.safety.supervisor import (  # noqa: E402
-    STATE_IDLE, STATE_RETURNING, STATE_TRACKING, IdlePolicy, SlewLimiter,
+    STATE_PERSON_LOST, STATE_TRACKING, IdlePolicy, SlewLimiter,
     max_step_ticks,
 )
 from src.safety.gate import SafetyGate, SafetyViolation
@@ -177,29 +177,26 @@ class TestIdlePolicy:
         state, torque = self.policy.update(0.0, True, {"a": 500}, self.neutral)
         assert state == STATE_TRACKING and torque is True
 
-    def test_person_leaves_starts_returning(self):
+    def test_person_leaves_enters_hold_without_moving_to_neutral(self):
         self.policy.update(0.0, True, {"a": 500, "b": 500}, self.neutral)
         state, torque = self.policy.update(1.0, False, {"a": 500, "b": 500},
                                            self.neutral)
-        assert state == STATE_RETURNING and torque is True
+        assert state == STATE_PERSON_LOST and torque is True
 
-    def test_reaching_neutral_then_waiting_releases_torque(self):
+    def test_person_loss_never_releases_torque_even_if_neutral(self):
         self.policy.update(0.0, True, self.neutral, self.neutral)
-        self.policy.update(1.0, False, self.neutral, self.neutral)
-        state, torque = self.policy.update(1.5, False, self.neutral, self.neutral)
-        assert state == STATE_RETURNING and torque is True
-        state, torque = self.policy.update(2.2, False, self.neutral, self.neutral)
-        assert state == STATE_IDLE and torque is False
+        state, torque = self.policy.update(1.0, False, self.neutral, self.neutral)
+        assert state == STATE_PERSON_LOST and torque is True
+        state, torque = self.policy.update(20.0, False, self.neutral, self.neutral)
+        assert state == STATE_PERSON_LOST and torque is True
 
-    def test_return_times_out_even_if_neutral_never_reached(self):
+    def test_person_loss_holds_even_after_former_return_timeout(self):
         stuck = {"a": 900, "b": 900}
         self.policy.update(0.0, True, stuck, self.neutral)
-        self.policy.update(1.0, False, stuck, self.neutral)
-        state, _ = self.policy.update(2.0, False, stuck, self.neutral)
-        assert state == STATE_RETURNING
-        self.policy.update(3.0, False, stuck, self.neutral)
-        state, torque = self.policy.update(4.1, False, stuck, self.neutral)
-        assert state == STATE_IDLE and torque is False
+        state, torque = self.policy.update(1.0, False, stuck, self.neutral)
+        assert state == STATE_PERSON_LOST and torque is True
+        state, torque = self.policy.update(20.0, False, stuck, self.neutral)
+        assert state == STATE_PERSON_LOST and torque is True
 
     def test_person_returning_resumes_tracking_from_idle(self):
         self.policy.update(0.0, False, self.neutral, self.neutral)
@@ -220,11 +217,11 @@ class TestIdleGracePeriod:
         state, torque = self.policy.update(0.2, False, {"a": 500}, self.neutral)
         assert state == STATE_TRACKING and torque is True
 
-    def test_sustained_absence_starts_returning(self):
+    def test_sustained_absence_enters_hold_state(self):
         self.policy.update(0.0, True, {"a": 500}, self.neutral)
         self.policy.update(0.2, False, {"a": 500}, self.neutral)
         state, _ = self.policy.update(0.8, False, {"a": 500}, self.neutral)
-        assert state == STATE_RETURNING
+        assert state == STATE_PERSON_LOST
 
     def test_reappearing_during_grace_resets_it(self):
         self.policy.update(0.0, True, {"a": 500}, self.neutral)

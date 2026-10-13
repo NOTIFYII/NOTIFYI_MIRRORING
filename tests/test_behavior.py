@@ -1,7 +1,5 @@
 """자세 분류기와 교정 정책 테스트."""
 
-import pytest
-
 from src.perception.posture_features import PostureAngles
 from src.posture.classifier import classify
 from src.posture.policy import PolicyConfig, PolicyState, should_trigger, urgency_level
@@ -194,39 +192,19 @@ class FakeGate:
 
 
 class TestBehaviorExecutor:
-    def event(self, action="gentle_remind", behavior="mimic_slouch",
+    def event(self, action="gentle_remind",
               angles=None, posture_label="slouch"):
         decision = type("Decision", (), {
             "action": action,
-            "behavior": behavior,
-            "speech": "등을 펴보세요.",
         })()
         return type("Event", (), {
             "decision": decision,
-            "observed_angles": angles,
             "posture_label": posture_label,
         })()
-
-    def test_mirror_without_observation_does_not_guess_pose(self):
-        executor = BehaviorExecutor(
-            {"experiment": {"condition": "mirror"}}, FakeGate())
-        action = executor.build(self.event())
-        assert action.behavior == "mirror"
-        assert action.pose is None
 
     def test_ignore_does_not_create_action(self):
         executor = BehaviorExecutor({}, FakeGate())
         assert executor.build(self.event(action="ignore")) is None
-
-    def test_mirror_uses_observed_posture(self):
-        observed = PostureAngles(1.0, 21.0, 13.0, 1.0)
-        executor = BehaviorExecutor({"experiment": {"condition": "mirror"}},
-                                    FakeGate())
-        action = executor.build(self.event(angles=observed))
-        assert action.behavior == "mirror"
-        assert action.pose.torso_pitch_deg == 21.0
-        assert action.pose.neck_pitch_deg == 13.0
-        assert action.speech == ""
 
     def test_posture_trigger_uses_fixed_pose_not_observed_posture(self):
         observed = PostureAngles(1.0, 21.0, 13.0, 1.0)
@@ -248,7 +226,6 @@ class TestBehaviorExecutor:
         assert action.pose.torso_pitch_deg == 8.0
         assert action.pose.neck_pitch_deg == 2.0
         assert action.pose.torso_pitch_deg != observed.torso_pitch_deg
-        assert action.speech == ""
 
     def test_posture_trigger_uses_one_generic_pose_for_lateral_bad_posture(self):
         executor = BehaviorExecutor({
@@ -274,14 +251,6 @@ class TestBehaviorExecutor:
         executor = BehaviorExecutor(
             {"experiment": {"condition": "posture_trigger"}}, FakeGate())
         assert executor.build(self.event(posture_label="unknown")) is None
-
-    def test_voice_condition_has_no_motion_override(self):
-        executor = BehaviorExecutor({"experiment": {"condition": "voice"}},
-                                    FakeGate())
-        action = executor.build(self.event())
-        assert action.behavior == "voice"
-        assert action.pose is None
-        assert action.speech == "등을 펴보세요."
 
     def test_unsupported_condition_is_rejected(self):
         try:

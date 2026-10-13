@@ -33,7 +33,11 @@ REQUIRED = (LEFT_SHOULDER, RIGHT_SHOULDER)
 
 @dataclass(frozen=True)
 class PostureAngles:
-    """한 시점의 자세. 각도는 도 단위, 양수가 앞으로 숙인 방향이다."""
+    """한 시점의 자세.
+
+    기존 2축(torso/neck pitch) 입력과 호환하면서, 로봇의 yaw/roll 축도
+    고정 포즈와 매핑에서 사용할 수 있게 확장한다. 각도는 도 단위다.
+    """
 
     timestamp: float
     torso_pitch_deg: float
@@ -42,6 +46,10 @@ class PostureAngles:
     lateral_tilt_deg: float = 0.0
     torso_compression: float = 0.0
     neck_compression: float = 0.0
+    torso_yaw_deg: float = 0.0
+    torso_roll_deg: float = 0.0
+    neck_yaw_deg: float = 0.0
+    neck_roll_deg: float = 0.0
 
     @property
     def valid(self):
@@ -103,7 +111,7 @@ def extract_angles(world, landmarks, timestamp, min_visibility_threshold=0.5,
     scale = max(shoulder_width, 0.02)
     neck_gap = max(0.0, shoulder_y - head_y)
 
-    # 사용자별 calibration 없이 쓰기 위한 보수적인 기준이다.
+    # 사용자별 기준값 없이 쓰기 위한 보수적인 기준이다.
     if hips_visible:
         hip_y = _mid_y(landmarks, LEFT_HIP, RIGHT_HIP)
         hip_x = _mid_x(landmarks, LEFT_HIP, RIGHT_HIP)
@@ -182,6 +190,10 @@ def clamp_angles(angles, max_torso_deg, max_neck_deg):
         lateral_tilt_deg=angles.lateral_tilt_deg,
         torso_compression=angles.torso_compression,
         neck_compression=angles.neck_compression,
+        torso_yaw_deg=angles.torso_yaw_deg,
+        torso_roll_deg=angles.torso_roll_deg,
+        neck_yaw_deg=angles.neck_yaw_deg,
+        neck_roll_deg=angles.neck_roll_deg,
     )
 
 
@@ -206,31 +218,14 @@ def smooth(previous, current, alpha, neck_alpha=None):
                            + (1 - alpha) * previous.torso_compression),
         neck_compression=(na * current.neck_compression
                           + (1 - na) * previous.neck_compression),
-    )
-
-
-@dataclass(frozen=True)
-class PostureReference:
-    """바른 자세를 기준으로 잡은 값.
-
-    2D 비율 기반에서도 사람과 카메라 위치마다 '바른 자세'의 수치가 다르다.
-    캘리브레이션으로 그 값을 재서 빼면 0 = 바른 자세가 된다.
-    """
-    torso_pitch_deg: float
-    neck_pitch_deg: float
-
-
-def apply_reference(angles, reference):
-    if reference is None:
-        return angles
-    return PostureAngles(
-        timestamp=angles.timestamp,
-        torso_pitch_deg=angles.torso_pitch_deg - reference.torso_pitch_deg,
-        neck_pitch_deg=angles.neck_pitch_deg - reference.neck_pitch_deg,
-        confidence=angles.confidence,
-        lateral_tilt_deg=angles.lateral_tilt_deg,
-        torso_compression=angles.torso_compression,
-        neck_compression=angles.neck_compression,
+        torso_yaw_deg=(alpha * current.torso_yaw_deg
+                      + (1 - alpha) * previous.torso_yaw_deg),
+        torso_roll_deg=(alpha * current.torso_roll_deg
+                        + (1 - alpha) * previous.torso_roll_deg),
+        neck_yaw_deg=(na * current.neck_yaw_deg
+                      + (1 - na) * previous.neck_yaw_deg),
+        neck_roll_deg=(na * current.neck_roll_deg
+                       + (1 - na) * previous.neck_roll_deg),
     )
 
 
@@ -268,4 +263,8 @@ class MedianFilter:
             lateral_tilt_deg=median(self._lateral),
             torso_compression=median(self._torso_compression),
             neck_compression=median(self._neck_compression),
+            torso_yaw_deg=angles.torso_yaw_deg,
+            torso_roll_deg=angles.torso_roll_deg,
+            neck_yaw_deg=angles.neck_yaw_deg,
+            neck_roll_deg=angles.neck_roll_deg,
         )

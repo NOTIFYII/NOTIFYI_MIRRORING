@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """키보드로 관절을 하나씩 움직여보는 텔레옵. 위치 제어와 속도 제어를 모두 다룬다.
 
-이 로봇은 유닛마다 축 하나는 위치 제어, 하나는 속도 제어로 설정돼 있다.
+현재 두 구동 축은 위치 제어다. 속도 제어 분기는 다른 장비를 위한 검사 기능이다.
 같은 w/s 키가 축의 모드에 따라 다르게 동작한다.
 
   위치 제어 축: w/s 가 목표 위치를 ±step ticks 옮긴다. 위치 한계와
@@ -11,8 +11,8 @@
                 1초 안에 스스로 멈추게 한다.
 
 사용법:
-    ~/dynamixel-venv/bin/python scripts/teleop_keyboard.py
-    ~/dynamixel-venv/bin/python scripts/teleop_keyboard.py --ids 1 4 5
+    .venv-mp-pi3/bin/python scripts/teleop_keyboard.py
+    .venv-mp-pi3/bin/python scripts/teleop_keyboard.py --ids 2 3
 """
 
 import argparse
@@ -32,7 +32,7 @@ try:
         load_robot_config, open_bus, ping_all,
     )
 except ImportError as exc:
-    sys.exit(f"{exc}\n  ~/dynamixel-venv/bin/python 으로 실행하세요.")
+    sys.exit(f"{exc}\n  .venv-mp-pi3/bin/python 으로 실행하세요.")
 
 ADDR_MAX_POSITION = 48
 ADDR_MIN_POSITION = 52
@@ -131,7 +131,7 @@ def main():
     if not sys.stdin.isatty():
         sys.exit("터미널에서 실행해야 합니다.\n"
                  "  원격이면: ssh -t ubuntu 'cd ~/posture_robot_proto && "
-                 "~/dynamixel-venv/bin/python scripts/teleop_keyboard.py'")
+                 ".venv-mp-pi3/bin/python scripts/teleop_keyboard.py'")
 
     install_signal_guards()
 
@@ -191,7 +191,7 @@ def main():
                         f"ID {motor_id} 하드웨어 에러 0x{hw:02X} "
                         f"({describe_hardware_error(hw)}). 중단합니다.\n"
                         "  에러는 래치되어 재부팅 전까지 풀리지 않습니다:\n"
-                        "    ~/dynamixel-venv/bin/python scripts/torque_off.py "
+                        "    .venv-mp-pi3/bin/python scripts/torque_off.py "
                         "--clear-errors\n"
                         "  과부하라면 재부팅 전에 자세를 손으로 중립에 가깝게 "
                         "되돌려 부하를 덜어주세요."

@@ -5,8 +5,8 @@
 실제로 움직이려면 --go 를 반드시 붙여야 한다.
 
 사용법:
-    ~/dynamixel-venv/bin/python scripts/identify_joints.py --id 1            # 계획만 출력
-    ~/dynamixel-venv/bin/python scripts/identify_joints.py --id 1 --go       # 실제로 흔든다
+    .venv-mp-pi3/bin/python scripts/identify_joints.py --id 2            # 계획만 출력
+    .venv-mp-pi3/bin/python scripts/identify_joints.py --id 2 --go       # 실제로 흔든다
 """
 
 import argparse
@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 import time
 
-VENV_HINT = "~/dynamixel-venv/bin/python"
+VENV_HINT = ".venv-mp-pi3/bin/python"
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

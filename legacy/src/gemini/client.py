@@ -13,7 +13,7 @@ from google import genai
 from google.genai import types
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(PROJECT_ROOT / ".env")
 
 

@@ -1,8 +1,7 @@
 """모터 지령을 하드웨어 직전에 통과시키는 결정론적 안전 게이트.
 
-Gemini 같은 판단 모듈은 행동 이름만 고르고, 실제 목표 tick은 이 모듈을
-통과한 값만 쓴다. 이 파일의 계산은 IO를 하지 않아서 하드웨어 없이 테스트할
-수 있다.
+행동 판단은 모터 각도를 만들지 않고, 실제 목표 tick은 이 모듈을 통과한 값만
+쓴다. 이 파일의 계산은 IO를 하지 않아서 하드웨어 없이 테스트할 수 있다.
 """
 
 from __future__ import annotations
@@ -31,24 +30,24 @@ class SafetyGate:
                 "(postic.safety.v1 필요)"
             )
         motion = safety.get("motion") or {}
-        legacy_motion = config.get("motion") or {}
         angles = config.get("angles") or {}
 
-        # safety.motion 이 없던 기존 설정도 그대로 동작하도록 이전 값을
-        # fallback 으로 사용한다. 새 설정에서는 safety 가 단일 정책 소스다.
-        max_step_deg = motion.get("max_step_deg",
-                                 legacy_motion.get("max_step_deg", 1.5))
+        max_step_deg = motion.get("max_step_deg", 1.5)
         self.max_step_deg = float(max_step_deg)
         if self.max_step_deg <= 0:
             raise SafetyViolation("max_step_deg 는 0 보다 커야 합니다")
         self.max_step_ticks = self.max_step_deg * TICKS_PER_DEG
         self.limiter = SlewLimiter(self.max_step_ticks)
 
-        self.max_torso_deg = float(
-            angles.get("max_torso_pitch_deg", 30.0))
-        self.max_neck_deg = float(
-            angles.get("max_neck_pitch_deg", 25.0))
-        if self.max_torso_deg < 0 or self.max_neck_deg < 0:
+        self.max_angles = {
+            "torso_pitch": float(angles.get("max_torso_pitch_deg", 30.0)),
+            "torso_yaw": float(angles.get("max_torso_yaw_deg", 30.0)),
+            "torso_roll": float(angles.get("max_torso_roll_deg", 30.0)),
+            "neck_pitch": float(angles.get("max_neck_pitch_deg", 25.0)),
+            "neck_yaw": float(angles.get("max_neck_yaw_deg", 25.0)),
+            "neck_roll": float(angles.get("max_neck_roll_deg", 25.0)),
+        }
+        if any(value < 0 for value in self.max_angles.values()):
             raise SafetyViolation("각도 안전 범위는 0 이상이어야 합니다")
         self.max_behavior_duration_sec = float(
             motion.get("behavior_max_duration_sec", 1.5))
@@ -59,16 +58,25 @@ class SafetyGate:
         """행동용 자세를 각도 안전 범위 안으로 제한한다."""
         if not pose.valid:
             raise SafetyViolation("유효하지 않은 자세는 행동으로 실행할 수 없습니다")
-        if not all(math.isfinite(value) for value in (
-                pose.torso_pitch_deg, pose.neck_pitch_deg)):
+        fields = (
+            "torso_pitch_deg", "torso_yaw_deg", "torso_roll_deg",
+            "neck_pitch_deg", "neck_yaw_deg", "neck_roll_deg",
+        )
+        if not all(math.isfinite(getattr(pose, field)) for field in fields):
             raise SafetyViolation("자세 각도에 유한하지 않은 값이 있습니다")
+        limited = {}
+        for field in fields:
+            limit = self.max_angles[field[:-4]]
+            limited[field] = max(-limit, min(limit, getattr(pose, field)))
         return PostureAngles(
             timestamp=pose.timestamp,
-            torso_pitch_deg=max(-self.max_torso_deg,
-                                min(self.max_torso_deg, pose.torso_pitch_deg)),
-            neck_pitch_deg=max(-self.max_neck_deg,
-                               min(self.max_neck_deg, pose.neck_pitch_deg)),
+            torso_pitch_deg=limited["torso_pitch_deg"],
+            neck_pitch_deg=limited["neck_pitch_deg"],
             confidence=pose.confidence,
+            torso_yaw_deg=limited["torso_yaw_deg"],
+            torso_roll_deg=limited["torso_roll_deg"],
+            neck_yaw_deg=limited["neck_yaw_deg"],
+            neck_roll_deg=limited["neck_roll_deg"],
         )
 
     def clamp_duration(self, duration_sec: float) -> float:
@@ -92,11 +100,36 @@ class SafetyGate:
         for name, target in targets.items():
             if not isinstance(target, (int, float)) or not math.isfinite(target):
                 raise SafetyViolation(f"{name} 목표 tick이 유효하지 않습니다: {target!r}")
-            spec = self.mapper.joints[name]
-            bounded[name] = int(round(max(spec["min_position"],
-                                          min(spec["max_position"], target))))
+            bounded[name] = self.mapper.clamp_target(name, target)
         return bounded
 
     def limit_targets(self, current: dict, targets: dict) -> dict:
         """관절 한계와 제어 주기당 변화량을 모두 적용한다."""
-        return self.limiter.apply(current, self.clamp_targets(targets))
+        bounded = self.clamp_targets(targets)
+        limited = {}
+        for name, target in bounded.items():
+            if name not in current:
+                limited[name] = target
+                continue
+            delta = self.mapper.position_delta(name, current[name], target)
+            if delta > self.max_step_ticks:
+                delta = self.max_step_ticks
+            elif delta < -self.max_step_ticks:
+                delta = -self.max_step_ticks
+            limited[name] = self.mapper.normalize_position(
+                name, current[name] + delta)
+        return limited
+
+    def validate_single_turn_transition(self, current: dict, targets: dict):
+        """mode 3에 원주 경계의 큰 숫자 점프를 전송하지 않는다.
+
+        숫자상 최단 원주 경로가 실제 Position Control의 경로라는 보장은 없다.
+        EEPROM/모터 모드 변경 없이 경계를 넘는 지령은 실물 검증 전 중단한다.
+        """
+        for name, target in targets.items():
+            if (self.mapper.joints[name].get("wrap_position", False)
+                    and name in current
+                    and abs(target - current[name]) > 2048):
+                raise SafetyViolation(
+                    f"{name}: 0/4095 위치 경계 통과 지령을 차단했습니다. "
+                    "현재 위치 제어의 실제 경로와 zero 설정을 먼저 검증하세요.")

@@ -10,4 +10,9 @@ models/**/*.task
 data/logs/
 data/samples/
 venv/
-.venv/
+.venv*/
+data/runs/
+
+# 3D 작업은 별도 브랜치에서 보관하며 main에 추가하지 않는다.
+/tools/digital_twin/
+/tests/test_digital_twin*

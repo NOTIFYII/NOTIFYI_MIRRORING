@@ -1,3 +1,5 @@
+raise SystemExit("보관된 속도 제어 실험입니다. 현재 두 모터에 실행하지 마세요.")
+
 import json
 import subprocess
 import time

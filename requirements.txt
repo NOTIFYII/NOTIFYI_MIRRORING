@@ -1,32 +1,12 @@
-# 직접 의존성만 고정한다. 전이 의존성은 pip 가 해결한다.
-# 전체 스냅샷이 필요하면: pip freeze > requirements.lock.txt
-#
-# 설치:
-#   python3 -m venv ~/dynamixel-venv        # 이미 있으면 생략
-#   ~/dynamixel-venv/bin/pip install -r requirements.txt
-#
-# 이 프로젝트는 카메라 · 마이크 · 모터를 한 프로세스에서 다룬다.
-# ROS2 의 dynamixel_sdk 에 의존하지 않으므로 setup.bash 를 source 할 필요가 없다.
-
-# 카메라 / 자세 인식
-# mediapipe 1.0 은 numpy<2.x 로 빌드됐지만 런타임에는 numpy 2.x 와 호환된다.
-# 호환이 깨지면 numpy==1.26.4 로 내린다. (pip install 시 경고가 뜨지만 동작함)
-mediapipe==1.0.0
-opencv-python==5.0.0.93
-numpy==2.2.6
-
-# 마이크 / 음성
-vosk==0.3.45
-sounddevice==0.5.5
-
-# Gemini
-google-genai==2.17.0
-pydantic==2.13.4
-python-dotenv==1.2.2
-
-# 설정
+# Notifyi 현재 실행 의존성. Raspberry Pi 3 B+에서는 Python 3.12 사용.
+# mediapipe 1.x ARM64 배포 바이너리의 AES 요구로 Pi 3에서 SIGILL이 재현됐다.
+# Python 3.12 + mediapipe 0.10.13의 모델 초기화는 해당 Pi에서 확인됐다.
+# OpenCV 배포판은 contrib 하나만 설치한다(cv2 패키지 중복 방지).
+mediapipe==0.10.13
+opencv-contrib-python==4.10.0.84
+numpy==1.26.4
 PyYAML==6.0.3
-
-# 모터
 dynamixel-sdk==4.0.5
 pyserial==3.5
+
+# Gemini/음성 보관 코드는 legacy/requirements.txt로 별도 설치한다.

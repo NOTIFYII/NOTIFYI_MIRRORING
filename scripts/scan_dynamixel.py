@@ -5,15 +5,15 @@
 찾고, 각 모터의 EEPROM/RAM 상태를 읽어 표로 출력한다.
 
 사용법:
-    ~/dynamixel-venv/bin/python scripts/scan_dynamixel.py
-    ~/dynamixel-venv/bin/python scripts/scan_dynamixel.py --port /dev/ttyUSB0 --baud 57600
+    .venv-mp-pi3/bin/python scripts/scan_dynamixel.py
+    .venv-mp-pi3/bin/python scripts/scan_dynamixel.py --port /dev/ttyACM0 --baud 57600
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-VENV_HINT = "~/dynamixel-venv/bin/python"
+VENV_HINT = ".venv-mp-pi3/bin/python"
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

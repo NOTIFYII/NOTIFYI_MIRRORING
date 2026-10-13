@@ -1,0 +1,6 @@
+# 보관된 Gemini/음성 실험 전용. 현재 앱의 설치 파일이 아니다.
+google-genai==2.17.0
+pydantic==2.13.4
+python-dotenv==1.2.2
+vosk==0.3.45
+sounddevice==0.5.5

@@ -15,6 +15,22 @@ function example() {
   };
 }
 
+test('official link frames preserve placement and remain optional in older projects', () => {
+  const parts = example();
+  parts.linkLong = [{ id:'linkLong-1', pos:[-2,.48,2.8], rot:[90,-90,0] }];
+  parts.linkShort = [{ id:'linkShort-1', pos:[2,.48,3.6], rot:[0,0,37.5] }];
+  const saved = project.decode(project.encode(parts));
+  assert.deepEqual(saved.parts.linkLong, parts.linkLong);
+  assert.deepEqual(saved.parts.linkShort, parts.linkShort);
+  delete saved.parts.linkLong;
+  delete saved.parts.linkShort;
+  const old = project.validate(saved);
+  assert.deepEqual(old.parts.linkLong, []);
+  assert.deepEqual(old.parts.linkShort, []);
+  old.parts.linkLong = null;
+  assert.throws(() => project.validate(old), /linkLong/);
+});
+
 test('three-motor chain and rotations survive JSON round trip without runtime/hardware state', () => {
   const parts = example();
   parts.motor[0].joints.A = 45;

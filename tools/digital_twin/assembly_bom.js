@@ -10,6 +10,8 @@
     ['connector', 'DXL TTL 3P 케이블'],
     ['opencr', 'OpenCR REVH'],
     ['laptop', '노트북 (화면 프록시)'],
+    ['linkLong', 'RM-X52 Link Frame Short'],
+    ['linkShort', 'RM-X52 Link Frame Long'],
   ];
   function build(parts) {
     return entries.map(([key, label]) => {

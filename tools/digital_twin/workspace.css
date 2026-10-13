@@ -101,13 +101,31 @@ aside.panel .part-row { grid-template-columns:1fr auto auto auto; gap:3px; }
 aside.panel .part-name { font-size:11px; }
 .example-assembly { width:100%; margin-top:12px; border-color:#4fa18e; color:#d6fff4; background:#164239; font-size:11px; font-weight:700; }
 aside.panel > :not(:first-child) { display:none; }
-.gizmo-overlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
-.gizmo-axis { pointer-events:stroke; fill:none; stroke-width:24px; stroke-linecap:round; opacity:.93; cursor:move; }
+.gizmo-overlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; touch-action:none; }
+.gizmo-axis { pointer-events:stroke; fill:none; stroke-width:14px; stroke-linecap:round; stroke-opacity:.12; cursor:move; }
 .gizmo-axis-core { pointer-events:none; fill:none; stroke-width:4px; stroke-linecap:round; }
 .gizmo-handle { pointer-events:all; stroke:#fff; stroke-width:1.5px; cursor:move; }
-.gizmo-rotate { pointer-events:stroke; fill:none; stroke-width:24px; opacity:.86; cursor:ew-resize; }
+.gizmo-rotate { pointer-events:stroke; fill:none; stroke-width:14px; stroke-opacity:.12; cursor:ew-resize; }
 .gizmo-rotate-core { pointer-events:none; fill:none; stroke-width:3px; }
-.gizmo-axis:hover,.gizmo-rotate:hover { opacity:1; filter:drop-shadow(0 0 5px white); }
+.gizmo-axis:hover,.gizmo-rotate:hover { stroke-opacity:.5; filter:drop-shadow(0 0 3px white); }
+.gizmo-plane { pointer-events:all; stroke-width:1.5px; fill-opacity:.16; cursor:move; }
+.gizmo-plane:hover,.gizmo-plane:focus-visible { fill-opacity:.5; stroke:#fff; }
+.gizmo-center { pointer-events:all; fill:#f4f7f8; stroke:#172730; stroke-width:2px; cursor:move; }
+.gizmo-center:hover { fill:#64dfd1; }
+.placement-toolbar { position:absolute; z-index:4; left:50%; top:78px; transform:translateX(-50%); display:flex; align-items:center; gap:6px; max-width:calc(100% - 580px); padding:7px 9px; background:rgba(16,30,39,.96); border:1px solid #42545e; border-radius:9px; box-shadow:0 5px 15px #0003; flex-wrap:wrap; }
+.placement-toolbar[hidden] { display:none; }
+.placement-toolbar > span { font-size:11px; color:#cad9df; width:100%; }
+.placement-toolbar [role=group] { display:flex; gap:2px; }
+.placement-toolbar button { font-size:11px; padding:6px 8px; min-height:32px; white-space:nowrap; }
+.placement-toolbar button[aria-pressed=true] { background:#58dbc7; color:#092b27; border-color:#58dbc7; }
+.placement-toolbar output { font-size:11px; color:#c9d4dc; width:100%; font-variant-numeric:tabular-nums; }
+@media(max-width:980px) { .placement-toolbar { top:76px; max-width:calc(100% - 20px); } }
+@media(min-width:701px) and (max-width:980px) {
+  body[data-workspace-mode=assembly][data-placement-tool=place] aside.panel { top:236px; max-height:calc(100% - 250px); }
+  body[data-workspace-mode=assembly][data-placement-tool=place] .controls { top:184px; max-height:calc(100% - 198px); }
+}
+@media(max-width:700px) { .placement-toolbar { top:65px; left:6px; right:6px; max-width:none; transform:none; padding:4px 6px; } .placement-toolbar > span { display:none; } .placement-toolbar button { min-height:36px; } .placement-toolbar output { width:auto; } }
+@media(max-width:700px) { body[data-workspace-mode=assembly][data-placement-tool=place] aside.panel { top:210px; max-height:24vh; } }
 .gizmo-label { pointer-events:none; fill:#fff; font-size:11px; font-weight:800; paint-order:stroke; stroke:#08131b; stroke-width:3px; }
 body[data-workspace-mode=wiring] .controls .editor > :not(.editor-head):not(#mateStatus) { display:none; }
 body[data-workspace-mode=wiring] aside.panel > :first-child { display:block; }

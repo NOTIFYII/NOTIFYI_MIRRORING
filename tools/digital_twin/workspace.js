@@ -5,10 +5,14 @@
       bracket: { label:'EF25-F14 브라켓', mesh:'bracket', color:[.84,.42,.16], base:[1.9,.58,1.7] },
       connector: { label:'DXL TTL 케이블', mesh:'connector', color:[.18,.23,.29], base:[.3,.08,.9] },
       opencr: { label:'OpenCR REVH', mesh:'opencr', color:[.22,.62,.42], base:[-3.6,.03,-2.4], rot:[-90,0,0] },
-      laptop: { label:'노트북', mesh:'laptop', color:[.35,.40,.48], base:[2,.03,-5.5] }
+      laptop: { label:'노트북', mesh:'laptop', color:[.35,.40,.48], base:[2,.03,-5.5] },
+      // Persisted keys keep their original file association so old scenes do not swap geometry.
+      linkLong: { label:'Link Frame · Short', mesh:'linkLong', color:[.68,.70,.74], base:[-2.7,.48,2.8], minCount:0 },
+      linkShort: { label:'Link Frame · Long', mesh:'linkShort', color:[.52,.57,.65], base:[1.9,.48,3.6], minCount:0 }
     };
     function makePart(key,index){const d=partDefs[key];return {id:`${key}-${index+1}`,key,pos:[d.base[0]+(index*.65),d.base[1]+(index*.35),d.base[2]],rot:d.rot?[...d.rot]:[0,0,0],stretch:1,rootSide:key==='bracket'?'plate':null,mates:key==='bracket'?{fork:null,plate:null}:null,joints:key==='motor'?{A:0,B:0}:null,axisIds:key==='motor'?{A:null,B:null}:null,assemblyRotation:null,connection:null};}
     const state = { motor:null, bracket:null, connector:null, opencr:null, laptop:null, desk:null, usbWire:null, rotor:null, workspace:null, yaw:.55, pitch:.35, distance:8, cameraTarget:[0,0,0], viewMode:'part', workspaceMode:'assembly', assemblyTool:'connect', auto:false, transformMode:'move', selectedKey:'motor', selectedId:'motor-1', pendingPort:null, parts:{motor:[makePart('motor',0)],bracket:[makePart('bracket',0)],connector:[makePart('connector',0)],opencr:[makePart('opencr',0)],laptop:[makePart('laptop',0)]}, drag:null, lastFrame:null };
+    state.parts.linkLong=[];state.parts.linkShort=[];
     const $ = id => document.getElementById(id);
     const PROJECT_STORAGE_KEY = 'notifyi.digitalTwin.project.v2';
     const LEGACY_PROJECT_STORAGE_KEY = 'notifyi.digitalTwin.project.v1';
@@ -49,7 +53,7 @@
       history.current=projectSnapshot();updateHistoryButtons();
     }
     function scheduleAutosave(){
-      if(!persistenceReady||autosaveBlocked)return;
+      if(!persistenceReady||autosaveBlocked||state.drag)return;
       let snapshot;
       try{snapshot=projectSnapshot();}
       catch(error){showProjectStatus(`저장할 수 없음: ${error.message}`);return;}
@@ -125,7 +129,7 @@
     function createLaptopMesh(){const verts=[],norms=[];addBox(verts,norms,[0,0,0],[42,1.4,25]);addBox(verts,norms,[0,23,-24],[42,23,1.2]);addBox(verts,norms,[0,1.9,-22],[40,.7,1.2]);return makeProceduralMesh(verts,norms);}
     function createUsbWireMesh(){const verts=[],norms=[];addTubeSegment(verts,norms,[-20,0,0],[20,0,0],.85,12);return makeProceduralMesh(verts,norms);}
     function createRotorMesh(){const verts=[],norms=[];addBox(verts,norms,[4.5,0,0],[4.5,.8,.5]);addBox(verts,norms,[9,0,0],[1,1.6,.5]);return makeProceduralMesh(verts,norms);}
-    async function load(){const [motor,bracket,opencr]=await Promise.all([loadMesh('./assets/2XL-430.step.stl'),loadMesh('./assets/EF25-F14.stp.stl'),loadMesh('./assets/OpenCR_REVH.stl')]);state.motor=motor;state.bracket=bracket;state.opencr=opencr;state.connector=createConnectorMesh();state.laptop=createLaptopMesh();state.desk=createDeskMeshes();state.usbWire=createUsbWireMesh();state.rotor=createRotorMesh();$('statusText').textContent='STEP 부분 검토 완료 · 실물 체결 미검증';$('statusDot').classList.add('live');restoreProject();focusAssembly();renderPartList();updateSelectionControls();requestAnimationFrame(draw);loadWorkspaceStatus();}
+    async function load(){const [motor,bracket,opencr,linkLong,linkShort]=await Promise.all([loadMesh('./assets/2XL-430.step.stl'),loadMesh('./assets/EF25-F14.stp.stl'),loadMesh('./assets/OpenCR_REVH.stl'),loadMesh('./assets/LINK_FRAMELONG.stl'),loadMesh('./assets/LINK_FRAMESHORT.stl')]);Object.assign(state,{motor,bracket,opencr,linkLong,linkShort});state.parts.linkLong=[];state.parts.linkShort=[];state.connector=createConnectorMesh();state.laptop=createLaptopMesh();state.desk=createDeskMeshes();state.usbWire=createUsbWireMesh();state.rotor=createRotorMesh();groundInitialParts();$('statusText').textContent='공식 CAD 로딩 완료 · 실물 체결 미검증';restoreProject();focusAssembly();renderPartList();updateSelectionControls();draw();$('statusDot').classList.add('live');loadWorkspaceStatus();}
     const configuredJoints=[
       {id:2,name:'waist_lower_yaw',label:'허리 아래 · 좌우',zero_position:1034},
       {id:3,name:'waist_lower_pitch',label:'허리 아래 · 앞뒤',zero_position:3059},
@@ -263,6 +267,51 @@
     function partRotation(part){return part.assemblyRotation||eulerRotation(part.rot);}
     function partModel(part){const unit=(part.key==='laptop'?2.1:1)/state.motor.radius,stretch=part.key==='connector'?part.stretch||1:1;return mul(translate(part.pos[0],part.pos[1],part.pos[2]),mul(partRotation(part),scale(unit*stretch,unit,unit)));}
     function partMesh(part){return state[partDefs[part.key].mesh];}
+    const DESK_TOP_Y=0;
+    function placementGroup(part){
+      if(!part||part.key==='connector'&&part.connection)return null;
+      if(!['motor','bracket'].includes(part.key))return {root:part,parts:[part]};
+      const members=new Set([part]);
+      // Mechanical mates form a forest. Electrical cables are flexible, not rigid mates.
+      let changed=true;
+      while(changed){changed=false;for(const bracket of state.parts.bracket){
+        const motors=[bracket.mates?.fork,bracket.mates?.plate].filter(Boolean).map(end=>findPart('motor',end.motorId)).filter(Boolean);
+        if(members.has(bracket)||motors.some(motor=>members.has(motor))){
+          for(const member of [bracket,...motors])if(!members.has(member)){members.add(member);changed=true;}
+        }
+      }}
+      const root=[...members].find(member=>member.key==='motor'&&!incomingBracketFor(member.id))||part;
+      return {root,parts:[...members]};
+    }
+    function groupBottom(group){
+      return Math.min(...group.parts.map(part=>NotifyiSceneManipulation.worldYRange(partMesh(part).verts,partModel(part)).min));
+    }
+    function placeGroupOnDesk(part,{onlyLift=false,target=DESK_TOP_Y}={}){
+      updateConnections();const group=placementGroup(part);if(!group)return false;
+      const bottom=groupBottom(group),amount=target-bottom;
+      if(!Number.isFinite(amount)||onlyLift&&amount<=0)return false;
+      group.root.pos[1]+=amount;updateConnections();return Math.abs(amount)>1e-8;
+    }
+    function groundAllParts(){
+      updateConnections();const visited=new Set();
+      for(const part of Object.values(state.parts).flat()){
+        if(visited.has(part))continue;const group=placementGroup(part);if(!group)continue;
+        group.parts.forEach(member=>visited.add(member));placeGroupOnDesk(part);
+      }
+      updateSelectionControls();draw();setMateStatus('책상 윗면 Y=0에 모든 부품을 놓았습니다. 기계 체결 관계는 유지됩니다.');
+    }
+    function groundInitialParts(){
+      for(const part of Object.values(state.parts).flat())placeGroupOnDesk(part);
+    }
+    function setPlacementAngle(part,axis,value){
+      const group=placementGroup(part),bottom=Math.max(DESK_TOP_Y,groupBottom(group));
+      part.rot[axis]=value;placeGroupOnDesk(part,{target:bottom});
+    }
+    function rotatePlacementWorld(part,axis,degrees){
+      const bottom=Math.max(DESK_TOP_Y,groupBottom(placementGroup(part)));
+      part.rot=eulerFromRotation(mul([rx,ry,rz][axis](degrees*Math.PI/180),eulerRotation(part.rot)));
+      placeGroupOnDesk(part,{target:bottom});
+    }
     function partColor(part){const c=part.key==='connector'&&part.connection?[.26,.50,.82]:partDefs[part.key].color;if(part.id===state.selectedId&&part.key===state.selectedKey)return [Math.min(1,c[0]+.22),Math.min(1,c[1]+.2),Math.min(1,c[2]+.2)];return c;}
     function visibleParts(){return Object.keys(state.parts).flatMap(key=>state.parts[key].filter((part,index)=>{
       if(key!=='bracket'&&key!=='connector')return true;
@@ -270,7 +319,8 @@
       if(key==='bracket'&&(part.mates?.fork||part.mates?.plate))return true;
       if(key==='connector'&&part.connection)return true;
       const initial=makePart(key,index);
-      return part.pos.some((value,axis)=>value!==initial.pos[axis])||part.rot.some((value,axis)=>value!==initial.rot[axis]);
+      initial.pos[1]-=NotifyiSceneManipulation.worldYRange(partMesh(initial).verts,partModel(initial)).min;
+      return part.pos.some((value,axis)=>Math.abs(value-initial.pos[axis])>1e-8)||part.rot.some((value,axis)=>value!==initial.rot[axis]);
     }));}
     function findPart(key,id){return state.parts[key].find(part=>part.id===id)||null;}
     function rotateOffset(offset,angle){const a=angle*Math.PI/180,c=Math.cos(a),s=Math.sin(a);return [offset[0]*c-offset[1]*s,offset[0]*s+offset[1]*c,offset[2]];}
@@ -421,8 +471,9 @@
     function setAssemblyTool(tool){
       if(tool!=='connect'&&tool!=='place')return;
       state.assemblyTool=tool;state.pendingPort=null;
+      document.body.dataset.placementTool=tool;
       document.querySelectorAll('[data-assembly-tool]').forEach(button=>{const active=button.dataset.assemblyTool===tool;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
-      setMateStatus(tool==='connect'?'체결: 모터 회전축을 선택하거나 브라켓 판을 선택해 본체 체결면을 표시하세요.':'배치·회전: 선택한 부품의 핸들을 드래그하세요. 체결 지점은 체결 도구에서 표시됩니다.');draw();
+      updateSelectionControls();setMateStatus(tool==='connect'?'체결: 모터 회전축을 선택하거나 브라켓 판을 선택해 본체 체결면을 표시하세요.':'배치: 몸체 드래그는 책상과 나란히 이동 · 화살표는 한 축 · 사각형은 두 축 · 회전 링으로 방향 조절 · Esc 취소');draw();
     }
     function focusAssembly(){
       if(!state.motor)return;
@@ -434,6 +485,7 @@
     function setWorkspaceMode(mode){
       if(!['assembly','wiring','motion','status'].includes(mode))return;
       state.workspaceMode=mode;state.pendingPort=null;document.body.dataset.workspaceMode=mode;
+      updateSelectionControls();
       if(mode==='wiring'){state.yaw=-Math.PI*3/4;state.pitch=.25;$('cameraView').value='sockets';}
       document.querySelectorAll('[data-workspace-mode]').forEach(button=>{const active=button.dataset.workspaceMode===mode;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
       const prompts={assembly:state.assemblyTool==='connect'?'체결: 모터 회전축을 선택하거나 브라켓 판을 선택해 본체 체결면을 표시하세요.':'배치·회전: 선택한 부품의 핸들을 드래그하세요.',wiring:'USB 선은 별도입니다. OpenCR 또는 모터의 3핀 소켓을 먼저 누른 뒤 상대 소켓을 누르세요. TTL 케이블은 필요하면 자동 추가됩니다.',motion:'체결된 상대 모터 몸체를 좌우 드래그하거나 ±90° 버튼으로 자세를 바꿉니다. 실제 모터는 움직이지 않습니다.',status:'화면 배선과 실제 모터 관측은 다른 상태입니다. 관측 출처와 시각을 확인하세요.'};
@@ -479,12 +531,21 @@
     }
     function selectedPart(){return state.parts[state.selectedKey].find(part=>part.id===state.selectedId)||state.parts[state.selectedKey][0];}
     function selectPart(key,id){state.selectedKey=key;state.selectedId=id;document.querySelectorAll('.placement-angle-row').forEach(row=>delete row.dataset.customOpen);document.body.classList.add('inspector-open');updateSelectionControls();renderPartList();draw();}
-    function renderPartList(){const list=$('partList');if(!list)return;list.innerHTML=Object.keys(partDefs).map(key=>{const d=partDefs[key],parts=state.parts[key],selected=state.selectedKey===key;const instances=parts.length>1?`<div class="instance-list">${parts.map((part,index)=>{const detail=part.key==='bracket'?(part.mates.fork?` · ${part.mates.fork.axis}${part.mates.plate?'→모터':''}`:''):'';return `<button data-action="instance" data-id="${part.id}" class="${selected&&state.selectedId===part.id?'active':''}" aria-label="${d.label} #${index+1}${detail} 선택">#${index+1}${detail}</button>`;}).join('')}</div>`:'';return `<div class="part-row ${selected?'selected':''}" data-key="${key}"><button class="part-name" data-action="select">${d.label}</button><span class="part-count">${parts.length}</span><button data-action="remove" aria-label="${d.label} 마지막 부품 삭제" title="${parts.length===1?'최소 1개라 삭제할 수 없습니다':'마지막 인스턴스 삭제'}" ${parts.length===1?'disabled':''}>−</button><button data-action="add" aria-label="${d.label} 추가" title="부품 추가">＋</button>${instances}</div>`;}).join('');}
+    function renderPartList(){const list=$('partList');if(!list)return;list.innerHTML=Object.keys(partDefs).map(key=>{const d=partDefs[key],parts=state.parts[key],selected=state.selectedKey===key,minimum=d.minCount??1;const instances=parts.length>1?`<div class="instance-list">${parts.map((part,index)=>{const detail=part.key==='bracket'?(part.mates.fork?` · ${part.mates.fork.axis}${part.mates.plate?'→모터':''}`:''):'';return `<button data-action="instance" data-id="${part.id}" class="${selected&&state.selectedId===part.id?'active':''}" aria-label="${d.label} #${index+1}${detail} 선택">#${index+1}${detail}</button>`;}).join('')}</div>`:'';return `<div class="part-row ${selected?'selected':''}" data-key="${key}"><button class="part-name" data-action="select" ${parts.length?'':'disabled'}>${d.label}</button><span class="part-count">${parts.length}</span><button data-action="remove" aria-label="${d.label} 마지막 부품 삭제" title="${parts.length<=minimum?'최소 수량입니다':'마지막 인스턴스 삭제'}" ${parts.length<=minimum?'disabled':''}>−</button><button data-action="add" aria-label="${d.label} 추가" title="부품 추가">＋</button>${instances}</div>`;}).join('');}
     function updateSelectionControls(){
       const part=selectedPart();if(!part)return;updateConnections();
+      const group=placementGroup(part);
+      $('placementToolbar').hidden=state.workspaceMode!=='assembly'||state.assemblyTool!=='place';
+      $('placementSelection').textContent=`${partDefs[part.key].label} #${state.parts[part.key].indexOf(part)+1}${group?.parts.length>1?' · 체결된 조립체를 함께 배치':''}`;
+      $('groundPartBtn').disabled=!group;
+      for(const [id,mode] of [['directMoveBtn','move'],['directRotateBtn','rotate']]){
+        $(id).disabled=!group;$(id).setAttribute('aria-pressed',String(state.transformMode===mode));
+      }
       const number=state.parts[state.selectedKey].indexOf(part)+1,attached=positionLocked(part);
       const bracketDetail=part.key==='bracket'?` · 포크 ${part.mates.fork?`모터 #${state.parts.motor.findIndex(m=>m.id===part.mates.fork.motorId)+1}`:'대기'} / 판 ${part.mates.plate?`모터 #${state.parts.motor.findIndex(m=>m.id===part.mates.plate.motorId)+1}`:'대기'}`:'';
       $('selectionValue').textContent=`${partDefs[state.selectedKey].label} #${number}${attached?' · 연결로 배치됨':''}${bracketDetail}`;
+      const linkInfo=$('linkFrameInfo');linkInfo.hidden=!['linkLong','linkShort'].includes(part.key);
+      if(!linkInfo.hidden)linkInfo.textContent=`ROBOTIS 공개 STL · ${part.key==='linkLong'?'57.4':'82.4'} × 21 × 37 mm (파일 좌표 기준). 실제 길이에 맞게 표시명을 교환했습니다. 배치·회전·저장만 지원하며 2XL 자동 체결·간섭 검증 대상이 아닙니다.`;
       $('bracketRootEditor').hidden=part.key!=='bracket';
       const contacts=$('bracketContactStatus');contacts.hidden=part.key!=='bracket';
       if(part.key==='bracket'){
@@ -514,8 +575,8 @@
       renderAxisIdEditor();
       $('moveMode').classList.toggle('active',state.transformMode==='move');$('rotateMode').classList.toggle('active',state.transformMode==='rotate');
     }
-    function addPart(key){if(state.parts[key].length>=64){setMateStatus('한 종류의 부품은 최대 64개까지 저장할 수 있습니다.');return;}const part=makePart(key,state.parts[key].length);state.parts[key].push(part);selectPart(key,part.id);}
-    function removePart(key){if(state.parts[key].length<=1){$('statusText').textContent='각 부품은 최소 1개를 유지합니다';return;}const removed=state.parts[key].at(-1);detachPart(removed);state.parts[key].pop();state.parts.connector.forEach(part=>{if(part.connection&&(part.connection.a.id===removed.id||part.connection.b.id===removed.id)){part.connection=null;part.stretch=1;}});if(state.selectedKey===key&&state.selectedId===removed.id)selectPart(key,state.parts[key][0].id);else{renderPartList();draw();}}
+    function addPart(key){if(state.parts[key].length>=64){setMateStatus('한 종류의 부품은 최대 64개까지 저장할 수 있습니다.');return;}const part=makePart(key,state.parts[key].length);state.parts[key].push(part);placeGroupOnDesk(part);selectPart(key,part.id);}
+    function removePart(key){if(state.parts[key].length<=(partDefs[key].minCount??1)){$('statusText').textContent='최소 수량을 유지합니다';return;}const removed=state.parts[key].at(-1);detachPart(removed);state.parts[key].pop();state.parts.connector.forEach(part=>{if(part.connection&&(part.connection.a.id===removed.id||part.connection.b.id===removed.id)){part.connection=null;part.stretch=1;}});if(state.selectedKey===key&&state.selectedId===removed.id){const next=state.parts[key][0];selectPart(next?key:'motor',next?next.id:'motor-1');}else{renderPartList();draw();}}
     function disconnectBracketEnd(bracket,side){
       const child=bracket.mates?.fork&&bracket.mates?.plate&&findPart('motor',bracketChild(bracket).motorId);
       if(child?.assemblyRotation)child.rot=eulerFromRotation(child.assemblyRotation);
@@ -538,15 +599,15 @@
       if(positionLocked(part)){setMateStatus('결합된 부품은 위치가 고정됩니다. 먼저 「선택 부품 연결 해제」를 누르세요.');return false;}
       return true;
     }
-    function resetPart(part){detachPart(part);const index=state.parts[part.key].indexOf(part),fresh=makePart(part.key,index);part.pos=fresh.pos;part.rot=fresh.rot;part.stretch=fresh.stretch;part.rootSide=fresh.rootSide;part.mates=fresh.mates;part.joints=fresh.joints;part.assemblyRotation=null;part.connection=null;updateSelectionControls();renderPartList();draw();}
-    function resetAllParts(){Object.keys(state.parts).forEach(key=>state.parts[key]=state.parts[key].map((part,index)=>makePart(key,index)));autosaveBlocked=false;state.pendingPort=null;selectPart(state.selectedKey,state.parts[state.selectedKey][0].id);}
+    function resetPart(part){detachPart(part);const index=state.parts[part.key].indexOf(part),fresh=makePart(part.key,index);part.pos=fresh.pos;part.rot=fresh.rot;part.stretch=fresh.stretch;part.rootSide=fresh.rootSide;part.mates=fresh.mates;part.joints=fresh.joints;part.assemblyRotation=null;part.connection=null;placeGroupOnDesk(part);updateSelectionControls();renderPartList();draw();}
+    function resetAllParts(){Object.keys(state.parts).forEach(key=>state.parts[key]=state.parts[key].map((part,index)=>makePart(key,index)));groundInitialParts();autosaveBlocked=false;state.pendingPort=null;selectPart(state.selectedKey,state.parts[state.selectedKey][0].id);}
     function loadExampleAssembly(){
       const hasAssembly=state.parts.motor.length>1||state.parts.bracket.some(part=>part.mates.fork||part.mates.plate)||state.parts.connector.some(part=>part.connection);
       if(hasAssembly&&!window.confirm('현재 조립 배치를 2모터 예제로 바꿀까요? 실행 취소로 복원할 수 있습니다.'))return;
       const base=makePart('motor',0),upper=makePart('motor',1),bracket=makePart('bracket',0);
       bracket.rootSide='plate';bracket.mates.plate={motorId:base.id,face:'front'};bracket.mates.fork={motorId:upper.id,axis:'A'};
       state.parts.motor=[base,upper];state.parts.bracket=[bracket];state.parts.connector=[makePart('connector',0)];
-      state.pendingPort=null;state.yaw=.55;state.pitch=.27;focusAssembly();
+      placeGroupOnDesk(base);state.pendingPort=null;state.yaw=.55;state.pitch=.27;focusAssembly();
       selectPart('bracket',bracket.id);
       setMateStatus('2모터 예제: 본체 +Z면의 네 홀은 STEP상 정렬됩니다. 하지만 A축 ±30° 회전 시 CAD 간섭이 확인돼 실제 구동 불가입니다.');
     }
@@ -696,14 +757,30 @@
     }
     function projectPoint(model,point=[0,0,0]){const m=mul(state.lastFrame.proj,mul(state.lastFrame.view,model));const x=point[0],y=point[1],z=point[2];const clip=[m[0]*x+m[4]*y+m[8]*z+m[12],m[1]*x+m[5]*y+m[9]*z+m[13],m[2]*x+m[6]*y+m[10]*z+m[14],m[3]*x+m[7]*y+m[11]*z+m[15]];if(clip[3]<=0)return null;return [(clip[0]/clip[3]*.5+.5)*canvas.clientWidth,(-clip[1]/clip[3]*.5+.5)*canvas.clientHeight];}
     const gizmoColors=['#fa8185','#8de5aa','#8fb5ff'];
+    const worldAxes=[[1,0,0],[0,1,0],[0,0,1]];
+    function cursorRay(event){const rect=canvas.getBoundingClientRect();return NotifyiSceneManipulation.rayFromCamera(state.lastFrame,rect.width,rect.height,event.clientX-rect.left,event.clientY-rect.top);}
+    function gizmoRadius(){return Math.max(.5,Math.min(3,state.distance*.11));}
     function svgElement(tag,attributes){const node=document.createElementNS(svgNS,tag);for(const [key,value] of Object.entries(attributes))node.setAttribute(key,String(value));return node;}
     function drawGizmo(){
-      const overlay=$('gizmoOverlay'),focusedAxis=overlay.contains(document.activeElement)?document.activeElement.dataset.gizmoAxis:null;
+      const overlay=$('gizmoOverlay'),focused=overlay.contains(document.activeElement)?document.activeElement:null;
+      const focusedAxis=focused?.dataset.gizmoAxis,focusedPlane=focused?.dataset.gizmoPlane;
+      const focusedPlaneClass=focused?.classList.contains('gizmo-center')?'gizmo-center':'gizmo-plane';
       overlay.setAttribute('viewBox',`0 0 ${canvas.clientWidth} ${canvas.clientHeight}`);overlay.replaceChildren();
       if(state.workspaceMode!=='assembly'||state.assemblyTool!=='place'||state.pendingPort||state.drag?.kind==='camera'||state.drag?.kind==='pan')return;
-      const part=selectedPart();if(!part||positionLocked(part))return;
+      const part=placementGroup(selectedPart())?.root;if(!part)return;
       const center=projectWorldPoint(part.pos);if(!center)return;
-      const axes=[[1,0,0],[0,1,0],[0,0,1]],radius=.82;
+      const axes=worldAxes,radius=gizmoRadius();
+      if(state.transformMode==='move'){
+        axes.forEach((normal,index)=>{
+          const one=axes[(index+1)%3],two=axes[(index+2)%3];
+          const points=[[.22,.22],[.43,.22],[.43,.43],[.22,.43]].map(([a,b])=>projectWorldPoint(part.pos.map((value,i)=>value+radius*(one[i]*a+two[i]*b))));
+          if(points.some(point=>!point))return;
+          const area=Math.abs(points.reduce((sum,point,i)=>sum+point[0]*points[(i+1)%4][1]-point[1]*points[(i+1)%4][0],0))/2;
+          if(area<40)return;
+          const name='XYZ'[(index+1)%3]+'XYZ'[(index+2)%3];
+          overlay.append(svgElement('polygon',{points:points.map(point=>point.join(',')).join(' '),class:'gizmo-plane',fill:gizmoColors[index],stroke:gizmoColors[index],'data-gizmo-plane':index,tabindex:0,role:'button','aria-label':`${name} 평면에서 이동`}));
+        });
+      }
       axes.forEach((axis,index)=>{
         if(state.transformMode==='move'){
           const tip=projectWorldPoint(part.pos.map((value,i)=>value+axis[i]*radius));
@@ -713,55 +790,88 @@
           overlay.append(target,svgElement('path',{d:line,class:'gizmo-axis-core',stroke:gizmoColors[index]}),svgElement('circle',{cx:tip[0],cy:tip[1],r:6,fill:gizmoColors[index],class:'gizmo-handle','data-gizmo-axis':index}));
           const label=svgElement('text',{x:tip[0]+9,y:tip[1]+4,class:'gizmo-label'});label.textContent='XYZ'[index];overlay.append(label);
         }else{
-          const one=axes[(index+1)%3],two=axes[(index+2)%3],points=[];
+          const towardEye=state.lastFrame.eye.map((value,i)=>value-part.pos[i]);
+          if(Math.abs(towardEye[index])/Math.hypot(...towardEye)<.1)return;
+          const one=axes[(index+1)%3],two=axes[(index+2)%3],points=[],ringRadius=radius*(.85+index*.16);
           for(let step=0;step<=48;step++){
             const theta=step*Math.PI*2/48;
-            const point=projectWorldPoint(part.pos.map((value,i)=>value+radius*(one[i]*Math.cos(theta)+two[i]*Math.sin(theta))));
+            const point=projectWorldPoint(part.pos.map((value,i)=>value+ringRadius*(one[i]*Math.cos(theta)+two[i]*Math.sin(theta))));
             if(!point)return;points.push(point);
           }
           const path=points.map((point,i)=>`${i?'L':'M'} ${point[0]} ${point[1]}`).join(' ');
           overlay.append(svgElement('path',{d:path,class:'gizmo-rotate',stroke:gizmoColors[index],'data-gizmo-axis':index,tabindex:0,role:'button','aria-label':`${'XYZ'[index]}축으로 회전`}),svgElement('path',{d:path,class:'gizmo-rotate-core',stroke:gizmoColors[index]}));
         }
       });
-      if(focusedAxis!==null)overlay.querySelector(`.gizmo-axis[data-gizmo-axis="${focusedAxis}"],.gizmo-rotate[data-gizmo-axis="${focusedAxis}"]`)?.focus();
+      if(state.transformMode==='move')overlay.append(svgElement('circle',{cx:center[0],cy:center[1],r:7,class:'gizmo-center','data-gizmo-plane':1,tabindex:0,role:'button','aria-label':'책상과 나란히 XZ 이동'}));
+      if(focusedAxis!==undefined)overlay.querySelector(`.gizmo-axis[data-gizmo-axis="${focusedAxis}"],.gizmo-rotate[data-gizmo-axis="${focusedAxis}"]`)?.focus();
+      else if(focusedPlane!==undefined)overlay.querySelector(`.${focusedPlaneClass}[data-gizmo-plane="${focusedPlane}"]`)?.focus();
     }
     const gizmoOverlay=$('gizmoOverlay');
-    gizmoOverlay.addEventListener('pointerdown',event=>{
-      if(event.button!==0||event.target.dataset.gizmoAxis===undefined)return;
-      const part=selectedPart();if(!part||positionLocked(part))return;
-      event.preventDefault();event.stopPropagation();
-      const axis=Number(event.target.dataset.gizmoAxis),rect=gizmoOverlay.getBoundingClientRect(),center=projectWorldPoint(part.pos);
-      const tip=projectWorldPoint(part.pos.map((value,i)=>value+(i===axis ? .82 : 0)));
-      if(!center||!tip)return;
-      state.drag={kind:'gizmo',part,axis,mode:state.transformMode,start:[event.clientX,event.clientY],startValue:state.transformMode==='move'?part.pos[axis]:part.rot[axis],screenAxis:[tip[0]-center[0],tip[1]-center[1]],center:[center[0]+rect.left,center[1]+rect.top],startAngle:Math.atan2(event.clientY-rect.top-center[1],event.clientX-rect.left-center[0])};
-      gizmoOverlay.setPointerCapture(event.pointerId);
-    });
-    gizmoOverlay.addEventListener('pointermove',event=>{
-      const drag=state.drag;if(drag?.kind!=='gizmo')return;
-      const part=drag.part;
+    function beginPlacementDrag(event,part,{axis=null,plane=null,mode='move',kind='gizmo'}={}){
+      if(!part||!state.lastFrame)return false;
+      const ray=cursorRay(event),pivot=[...part.pos],group=placementGroup(part);
+      const normal=plane!==null?worldAxes[plane]:mode==='rotate'?worldAxes[axis]:null;
+      if(!ray||normal&&Math.abs(ray.direction[normal.indexOf(1)])<.025){setMateStatus('이 평면이 시선과 겹칩니다. 시점을 조금 돌려 조작하세요.');return false;}
+      const point=normal?NotifyiSceneManipulation.intersectPlane(ray,pivot,normal):null;
+      const parameter=normal?null:NotifyiSceneManipulation.axisParameter(ray,pivot,worldAxes[axis]);
+      if(normal&&!point||!normal&&parameter===null){setMateStatus('이 축이 시선과 겹칩니다. 시점을 조금 돌린 뒤 핸들을 잡으세요.');return false;}
+      state.drag={kind,part,axis,plane,mode,pivot,normal,startPoint:point,startParameter:parameter,startPos:[...part.pos],startRot:[...part.rot],bottom:Math.max(DESK_TOP_Y,groupBottom(group)),start:[event.clientX,event.clientY]};
+      state.auto=false;$('autoBtn').textContent='자동 회전';
+      if(autoFrame!==null){cancelAnimationFrame(autoFrame);autoFrame=null;}
+      return true;
+    }
+    function updatePlacementDrag(event){
+      const drag=state.drag;if(!['gizmo','part'].includes(drag?.kind))return;
+      if(!drag.moved&&Math.hypot(event.clientX-drag.start[0],event.clientY-drag.start[1])<3)return;
+      drag.moved=true;
+      const ray=cursorRay(event),part=drag.part;
+      if(!ray||drag.normal&&Math.abs(ray.direction[drag.normal.indexOf(1)])<.025)return;
       if(drag.mode==='move'){
-        const lengthSquared=drag.screenAxis[0]**2+drag.screenAxis[1]**2;
-        const amount=((event.clientX-drag.start[0])*drag.screenAxis[0]+(event.clientY-drag.start[1])*drag.screenAxis[1])/lengthSquared*.82;
-        part.pos[drag.axis]=Math.max(-12,Math.min(12,drag.startValue+amount));
+        let delta=[0,0,0];
+        if(drag.normal){const point=NotifyiSceneManipulation.intersectPlane(ray,drag.pivot,drag.normal);if(!point)return;delta=point.map((value,i)=>value-drag.startPoint[i]);}
+        else {const value=NotifyiSceneManipulation.axisParameter(ray,drag.pivot,worldAxes[drag.axis]);if(value===null)return;delta[drag.axis]=value-drag.startParameter;}
+        part.pos=drag.startPos.map((value,i)=>Math.max(-12,Math.min(12,value+delta[i])));
+        placeGroupOnDesk(part,{onlyLift:true});
+        const actual=part.pos.map((value,i)=>(value-drag.startPos[i])*state.motor.radius);
+        $('transformReadout').textContent=`Δ X ${actual[0].toFixed(1)} · Y ${actual[1].toFixed(1)} · Z ${actual[2].toFixed(1)} mm`;
       }else{
-        const angle=Math.atan2(event.clientY-drag.center[1],event.clientX-drag.center[0]);
-        let delta=angle-drag.startAngle;while(delta>Math.PI)delta-=Math.PI*2;while(delta< -Math.PI)delta+=Math.PI*2;
-        part.rot[drag.axis]=Math.max(-180,Math.min(180,drag.startValue+Math.round(delta*180/Math.PI)));
+        const point=NotifyiSceneManipulation.intersectPlane(ray,drag.pivot,drag.normal);if(!point)return;
+        let angle=NotifyiSceneManipulation.signedRotation(drag.startPoint.map((value,i)=>value-drag.pivot[i]),point.map((value,i)=>value-drag.pivot[i]),drag.normal);
+        if(angle===null)return;if(event.shiftKey)angle=Math.round(angle/(Math.PI/12))*(Math.PI/12);
+        const rotation=[rx,ry,rz][drag.axis](angle);
+        part.rot=eulerFromRotation(mul(rotation,eulerRotation(drag.startRot)));
+        part.pos=[...drag.startPos];placeGroupOnDesk(part,{target:drag.bottom});
+        $('transformReadout').textContent=`${'XYZ'[drag.axis]}축 회전 ${(angle*180/Math.PI).toFixed(1)}° · Shift: 15° 간격`;
       }
       updateSelectionControls();draw();
+    }
+    function finishPlacementDrag(cancel=false){
+      const drag=state.drag;if(!['gizmo','part'].includes(drag?.kind))return;
+      if(cancel){drag.part.pos=[...drag.startPos];drag.part.rot=[...drag.startRot];}
+      state.drag=null;canvas.classList.remove('dragging');updateSelectionControls();draw();
+      $('transformReadout').textContent=cancel?'조작 취소 · 원래 배치로 복원':'책상 윗면 Y = 0 · Esc: 조작 취소';
+    }
+    gizmoOverlay.addEventListener('pointerdown',event=>{
+      const {gizmoAxis,gizmoPlane}=event.target.dataset;
+      if(event.button!==0||gizmoAxis===undefined&&gizmoPlane===undefined)return;
+      event.preventDefault();event.stopPropagation();
+      const part=placementGroup(selectedPart())?.root;
+      if(beginPlacementDrag(event,part,{axis:gizmoAxis===undefined?null:Number(gizmoAxis),plane:gizmoPlane===undefined?null:Number(gizmoPlane),mode:state.transformMode}))gizmoOverlay.setPointerCapture(event.pointerId);
     });
+    gizmoOverlay.addEventListener('pointermove',updatePlacementDrag);
     gizmoOverlay.addEventListener('keydown',event=>{
-      if(event.target.dataset.gizmoAxis===undefined||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
-      const part=selectedPart();if(!part||positionLocked(part))return;
-      event.preventDefault();const axis=Number(event.target.dataset.gizmoAxis),direction=event.key==='ArrowRight'||event.key==='ArrowUp'?1:-1;
-      if(state.transformMode==='move')part.pos[axis]=Math.max(-12,Math.min(12,part.pos[axis]+direction*(event.shiftKey?.5:.1)));
-      else part.rot[axis]=Math.max(-180,Math.min(180,part.rot[axis]+direction*(event.shiftKey?15:5)));
+      const {gizmoAxis,gizmoPlane}=event.target.dataset;
+      if(gizmoAxis===undefined&&gizmoPlane===undefined||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
+      const part=placementGroup(selectedPart())?.root;if(!part)return;
+      event.preventDefault();const planeAxes=[0,1,2].filter(index=>index!==Number(gizmoPlane));
+      const axis=gizmoAxis===undefined?planeAxes[event.key==='ArrowUp'||event.key==='ArrowDown'?1:0]:Number(gizmoAxis),direction=event.key==='ArrowRight'||event.key==='ArrowUp'?1:-1;
+      if(state.transformMode==='move'){part.pos[axis]=Math.max(-12,Math.min(12,part.pos[axis]+direction*(event.shiftKey?.5:.1)));placeGroupOnDesk(part,{onlyLift:true});}
+      else rotatePlacementWorld(part,axis,direction*(event.shiftKey?15:5));
       updateSelectionControls();draw();
     });
-    function finishGizmo(){if(state.drag?.kind==='gizmo'){state.drag=null;recordHistory();draw();}}
-    gizmoOverlay.addEventListener('pointerup',finishGizmo);
-    gizmoOverlay.addEventListener('pointercancel',finishGizmo);
-    gizmoOverlay.addEventListener('lostpointercapture',finishGizmo);
+    gizmoOverlay.addEventListener('pointerup',()=>finishPlacementDrag());
+    gizmoOverlay.addEventListener('pointercancel',()=>finishPlacementDrag(true));
+    gizmoOverlay.addEventListener('lostpointercapture',()=>finishPlacementDrag(true));
     function pickPart(x,y){
       if(!state.lastFrame)return null;
       gl.useProgram(pickProgram);gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.DITHER);
@@ -791,11 +901,19 @@
       if(hit&&state.pendingPort?.kind==='ttl')setMateStatus('3핀 연결은 보라색 소켓 윤곽선을 직접 선택하세요. 몸체 클릭은 배선으로 처리하지 않습니다.');
       if(state.pendingPort&&!hit)setMateStatus('모델 몸체를 선택하지 못했습니다. 보이는 부품 표면을 클릭하거나 시점을 바꿔 보세요.');
       if(hit)selectPart(hit.key,hit.id);
+      if(hit&&state.workspaceMode==='assembly'&&state.assemblyTool==='place'&&!state.pendingPort){
+        const root=placementGroup(hit)?.root;
+        if(state.transformMode==='move'&&root&&beginPlacementDrag(e,root,{plane:1,kind:'part'})){
+          canvas.classList.add('dragging');canvas.setPointerCapture(e.pointerId);return;
+        }
+        state.drag={kind:'selection'};canvas.setPointerCapture(e.pointerId);return;
+      }
       const linked=state.workspaceMode==='motion'&&!state.pendingPort?connectedJointFor(hit):null;
       if(linked){state.drag={kind:'joint',control:linked,startX:x,startAngle:linked.motor.joints[linked.axis]};last=[x,y];canvas.classList.add('dragging');canvas.setPointerCapture(e.pointerId);setMateStatus(`브라켓 체결 유지 · ${linked.axis}축을 좌우 드래그해 상대 모터를 회전하세요. 화면 시뮬레이션입니다.`);return;}
       state.drag={kind:'camera',moved:false};last=[x,y];canvas.classList.add('dragging');canvas.setPointerCapture(e.pointerId);
     });
     canvas.addEventListener('pointermove',e=>{
+      if(state.drag?.kind==='part'){updatePlacementDrag(e);return;}
       if(!state.drag)return;const [x,y]=canvasPoint(e),dx=x-last[0],dy=y-last[1];
       if(Math.abs(dx)+Math.abs(dy)<.2)return;
       if(state.drag.kind==='camera'){state.yaw+=dx*.008;state.pitch=Math.max(-1.45,Math.min(1.45,state.pitch+dy*.008));}
@@ -807,8 +925,9 @@
       }
       last=[x,y];draw();
     });
-    function finishDrag(){if(state.drag?.kind==='joint'){state.drag=null;recordHistory();draw();}else state.drag=null;canvas.classList.remove('dragging');}
-    canvas.addEventListener('pointerup',finishDrag);canvas.addEventListener('pointercancel',finishDrag);
+    function finishDrag(){if(state.drag?.kind==='part'){finishPlacementDrag();return;}if(state.drag?.kind==='joint'){state.drag=null;recordHistory();draw();}else state.drag=null;canvas.classList.remove('dragging');}
+    canvas.addEventListener('pointerup',finishDrag);canvas.addEventListener('pointercancel',()=>{if(state.drag?.kind==='part')finishPlacementDrag(true);else finishDrag();});
+    canvas.addEventListener('lostpointercapture',()=>{if(state.drag?.kind==='part')finishPlacementDrag(true);else if(state.drag)finishDrag();});
     canvas.addEventListener('wheel',e=>{e.preventDefault();state.distance=Math.max(1.1,Math.min(25,state.distance*(e.deltaY>0?1.08:.92)));draw();},{passive:false});
     document.querySelectorAll('[data-workspace-mode]').forEach(button=>button.addEventListener('click',()=>setWorkspaceMode(button.dataset.workspaceMode)));
     document.querySelectorAll('[data-assembly-tool]').forEach(button=>button.addEventListener('click',()=>setAssemblyTool(button.dataset.assemblyTool)));
@@ -828,8 +947,20 @@
     $('importProjectBtn').addEventListener('click',()=>$('projectFile').click());
     $('projectFile').addEventListener('change',event=>importProject(event.target.files?.[0]));
     $('resetBtn').addEventListener('click',()=>{state.yaw=.55;state.pitch=.3;focusAssembly();setViewMode('part');draw();}); $('autoBtn').addEventListener('click',()=>{state.auto=!state.auto;$('autoBtn').textContent=state.auto?'회전 중지':'자동 회전';$('statusText').textContent=state.auto?'3D 자동 회전 중':'STEP 부분 검토 완료 · 실물 체결 미검증';if(!state.auto&&autoFrame!==null){cancelAnimationFrame(autoFrame);autoFrame=null;}if(state.auto)draw();}); $('moveMode').addEventListener('click',()=>{state.transformMode='move';updateSelectionControls();draw();}); $('rotateMode').addEventListener('click',()=>{state.transformMode='rotate';updateSelectionControls();draw();}); $('resetPartBtn').addEventListener('click',()=>resetPart(selectedPart())); $('resetAllBtn').addEventListener('click',resetAllParts); $('detachBtn').addEventListener('click',()=>{detachPart(selectedPart());state.pendingPort=null;updateSelectionControls();renderPartList();draw();});
-    window.addEventListener('keydown',event=>{if(event.key==='Escape'&&state.pendingPort){state.pendingPort=null;setMateStatus('연결 선택을 취소했습니다.');draw();}});
-    [['partX',0],['partY',1],['partZ',2]].forEach(([id,index])=>$(id).addEventListener('change',e=>{const part=selectedPart(),value=Number(e.target.value);if(!Number.isFinite(value)||value< -12||value>12||!releaseForManualTransform(part)){updateSelectionControls();return;}part.pos[index]=value;updateSelectionControls();renderPartList();draw();}));
+    function setTransformMode(mode){state.transformMode=mode;updateSelectionControls();draw();}
+    $('directMoveBtn').addEventListener('click',()=>setTransformMode('move'));
+    $('directRotateBtn').addEventListener('click',()=>setTransformMode('rotate'));
+    $('groundPartBtn').addEventListener('click',()=>{placeGroupOnDesk(selectedPart());updateSelectionControls();draw();setMateStatus('선택한 부품·조립체를 책상 윗면 Y=0에 놓았습니다.');});
+    $('groundAllBtn').addEventListener('click',groundAllParts);
+    window.addEventListener('keydown',event=>{
+      if(event.key==='Escape'&&['gizmo','part'].includes(state.drag?.kind)){event.preventDefault();finishPlacementDrag(true);return;}
+      if(event.key==='Escape'&&state.pendingPort){state.pendingPort=null;setMateStatus('연결 선택을 취소했습니다.');draw();return;}
+      if(event.target.closest?.('input,textarea,select,[contenteditable]')||event.metaKey||event.ctrlKey||event.altKey||state.drag)return;
+      if(state.workspaceMode==='assembly'&&['g','r'].includes(event.key.toLowerCase())){
+        setAssemblyTool('place');setTransformMode(event.key.toLowerCase()==='g'?'move':'rotate');
+      }
+    });
+    [['partX',0],['partY',1],['partZ',2]].forEach(([id,index])=>$(id).addEventListener('change',e=>{const part=selectedPart(),value=Number(e.target.value);if(!Number.isFinite(value)||value< -12||value>12||!releaseForManualTransform(part)){updateSelectionControls();return;}part.pos[index]=value;placeGroupOnDesk(part,{onlyLift:true});updateSelectionControls();renderPartList();draw();}));
     $('placementRotation').addEventListener('click',event=>{
       const button=event.target.closest('button'),row=button?.closest('.placement-angle-row');if(!row)return;
       const part=selectedPart(),axis='XYZ'.indexOf(row.dataset.placementAxis);if(axis<0||!releaseForManualTransform(part)){updateSelectionControls();return;}
@@ -837,7 +968,7 @@
         row.dataset.customOpen='true';updateSelectionControls();const input=row.querySelector('input');input.focus();input.select();return;
       }
       if(!button.hasAttribute('data-placement-angle'))return;
-      delete row.dataset.customOpen;part.rot[axis]=Number(button.dataset.placementAngle);
+      delete row.dataset.customOpen;setPlacementAngle(part,axis,Number(button.dataset.placementAngle));
       updateSelectionControls();draw();
     });
     $('placementRotation').addEventListener('change',event=>{
@@ -845,7 +976,7 @@
       const row=input.closest('.placement-angle-row'),part=selectedPart(),axis='XYZ'.indexOf(row.dataset.placementAxis),raw=input.value.trim(),value=Number(raw);
       if(!raw||!Number.isFinite(value)||value< -180||value>180){input.setCustomValidity('−180°에서 180° 사이의 각도를 입력하세요.');input.reportValidity();return;}
       input.setCustomValidity('');if(axis<0||!releaseForManualTransform(part)){updateSelectionControls();return;}
-      part.rot[axis]=value;row.dataset.customOpen='true';updateSelectionControls();draw();
+      setPlacementAngle(part,axis,value);row.dataset.customOpen='true';updateSelectionControls();draw();
     });
     $('placementRotation').addEventListener('input',event=>{if(event.target.matches('.placement-custom input'))event.target.setCustomValidity('');});
     let activeJointTurn=null;

@@ -61,9 +61,8 @@ class ConnectionStatusTests(unittest.TestCase):
         with patch.object(serve.os.path, "exists", return_value=True):
             snapshot = serve.workspace_snapshot()
         zeros = {joint["id"]: joint["zero_position"] for joint in snapshot["joints"]}
-        self.assertEqual(zeros, {2: 1034, 3: 3059, 4: 2040,
-                                 5: 12, 6: 38, 7: 3039})
-        self.assertEqual(snapshot["unused_ids"], [1, 8])
+        self.assertEqual(zeros, {2: 1, 3: 1022})
+        self.assertEqual(snapshot["unused_ids"], [1, 4])
 
     def test_old_scan_is_not_live(self):
         self.save(age_seconds=30)

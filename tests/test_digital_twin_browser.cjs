@@ -50,6 +50,48 @@ async function freshPage() {
   return { context, page };
 }
 
+test('공식 Link Frame 둘을 추가하고 배치·회전·저장한 뒤 마지막 부품도 삭제한다', async () => {
+  const { context, page } = await freshPage();
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  try {
+    for(const key of ['linkLong','linkShort']){
+      const row=page.locator(`.part-row[data-key=${key}]`);
+      assert.equal(await row.locator('.part-name').innerText(),`Link Frame · ${key==='linkLong'?'Short':'Long'}`);
+      assert.equal(await row.locator('[data-action=select]').isEnabled(),false);
+      await row.locator('[data-action=add]').click();
+      assert.equal(await row.locator('.part-count').innerText(),'1');
+      assert.equal(await page.locator('#linkFrameInfo').isVisible(),true);
+      await page.locator('.placement-angle-row[data-placement-axis=X] [data-placement-angle="90"]').click();
+      await page.locator('[data-assembly-tool=place]').click();
+      await page.locator('#focusPartBtn').click();
+      const info=await page.evaluate(key=>({
+        triangles:partMesh(state.parts[key][0]).n,
+        rot:state.parts[key][0].rot,
+        ports:portsFor(state.parts[key][0]).length
+      }),key);
+      assert.ok(info.triangles>70000);
+      assert.deepEqual(info.rot,[90,0,0]);
+      assert.equal(info.ports,0);
+    }
+    await page.evaluate(()=>{state.parts.linkShort[0].pos[0]=3;draw();});
+    await page.waitForFunction(()=>JSON.parse(localStorage.getItem(PROJECT_STORAGE_KEY))?.parts.linkShort[0]?.pos[0]===3);
+    await page.reload();await page.locator('#statusDot.live').waitFor();
+    assert.deepEqual(await page.evaluate(()=>state.parts.linkShort[0].rot),[90,0,0]);
+    assert.equal(await page.evaluate(()=>state.parts.linkShort[0].pos[0]),3);
+    assert.equal(await page.evaluate(()=>NotifyiAssemblyBom.build(state.parts).find(row=>row.key==='linkLong').count),1);
+    await page.locator('.part-row[data-key=linkLong] [data-action=select]').click();
+    await page.locator('[data-assembly-tool=place]').click();
+    await page.locator('#focusPartBtn').click();
+    if(process.env.LINK_FRAME_SCREENSHOT)await page.screenshot({path:process.env.LINK_FRAME_SCREENSHOT});
+    await page.locator('.part-row[data-key=linkLong] [data-action=remove]').click();
+    assert.equal(await page.evaluate(()=>state.selectedKey),'motor');
+    assert.equal(await page.locator('.part-row[data-key=linkLong] .part-count').innerText(),'0');
+    await page.locator('#undoBtn').click();
+    assert.equal(await page.locator('.part-row[data-key=linkLong] .part-count').innerText(),'1');
+    assert.deepEqual(errors,[]);
+  } finally {await context.close();}
+});
+
 test('체결 후 상대 모터를 눕혔다가 되돌린다', async () => {
   const { context, page } = await freshPage();
   try {
@@ -249,9 +291,13 @@ test('조립 도구에서 체결 윤곽과 이동·회전 핸들이 겹치지 �
 test('책상 윗면 Y=0 좌표와 이전 브라우저 배치를 함께 보존한다', async () => {
   const { context, page } = await freshPage();
   try {
-    assert.equal(await page.locator('#partY').inputValue(), '0.58');
+    assert.equal(await page.locator('#partY').inputValue(), '1');
+    assert.equal(await page.evaluate(()=>NotifyiSceneManipulation.worldYRange(state.desk[0].mesh.verts,identity()).max),0);
+    const initial=await page.evaluate(()=>Object.values(state.parts).flat().map(part=>({id:part.id,y:part.pos[1],bottom:groupBottom(placementGroup(part))})));
+    assert.ok(initial.every(part=>Math.abs(part.bottom)<1e-8));
     await page.locator('.part-row[data-key=opencr] .part-name').click();
-    assert.equal(await page.locator('#partY').inputValue(), '0.03');
+    const opencrY=await page.locator('#partY').inputValue();
+    assert.ok(Number(opencrY)>.4);
     await page.waitForFunction(() => localStorage.getItem('notifyi.digitalTwin.project.v2') !== null);
     await page.evaluate(() => {
       const current = JSON.parse(localStorage.getItem('notifyi.digitalTwin.project.v2'));
@@ -264,9 +310,9 @@ test('책상 윗면 Y=0 좌표와 이전 브라우저 배치를 함께 보존한
     });
     await page.reload();
     await page.locator('#statusDot.live').waitFor();
-    assert.equal(await page.locator('#partY').inputValue(), '0.58');
+    assert.equal(await page.locator('#partY').inputValue(), '1');
     await page.locator('.part-row[data-key=opencr] .part-name').click();
-    assert.equal(await page.locator('#partY').inputValue(), '0.03');
+    assert.ok(Math.abs(Number(await page.locator('#partY').inputValue())-Number(opencrY))<1e-10);
     assert.ok(await page.evaluate(() => localStorage.getItem('notifyi.digitalTwin.project.v1') !== null));
   } finally {
     await context.close();
@@ -301,4 +347,133 @@ test('본체 배치 각도는 빠른 선택과 직접 입력을 사용하고 모
   } finally {
     await context.close();
   }
+});
+
+test('기존 저장본의 묻힌 조립체는 전체 높이 맞춤으로 복구하고 실행 취소할 수 있다',async()=>{
+  const {context,page}=await freshPage();
+  try{
+    await page.locator('#exampleAssemblyBtn').click();
+    const before=await page.evaluate(()=>{
+      state.parts.motor[0].pos[1]-=2;draw();
+      return {poses:state.parts.motor.map(part=>[...part.pos]),mates:JSON.stringify(state.parts.bracket[0].mates),bottom:groupBottom(placementGroup(state.parts.motor[0]))};
+    });
+    assert.ok(before.bottom< -1);
+    await page.waitForFunction(()=>JSON.parse(localStorage.getItem(PROJECT_STORAGE_KEY))?.parts.motor[0]?.pos[1]===state.parts.motor[0].pos[1]);
+    await page.reload();await page.locator('#statusDot.live').waitFor();
+    assert.ok(await page.evaluate(()=>groupBottom(placementGroup(state.parts.motor[0])))< -1,'restore must not silently rewrite saved poses');
+    await page.locator('[data-assembly-tool=place]').click();
+    await page.locator('#groundAllBtn').click();
+    const after=await page.evaluate(()=>({poses:state.parts.motor.map(part=>[...part.pos]),mates:JSON.stringify(state.parts.bracket[0].mates),bottom:groupBottom(placementGroup(state.parts.motor[0]))}));
+    assert.equal(after.mates,before.mates);
+    assert.ok(Math.abs(after.bottom)<1e-8);
+    for(let axis=0;axis<3;axis++)assert.ok(Math.abs((after.poses[1][axis]-after.poses[0][axis])-(before.poses[1][axis]-before.poses[0][axis]))<1e-8);
+    await page.locator('#undoBtn').click();
+    assert.ok(Math.abs(await page.evaluate(()=>groupBottom(placementGroup(state.parts.motor[0])))-before.bottom)<1e-8);
+  }finally{await context.close();}
+});
+
+test('부품 몸체를 책상 평면에서 드래그하고 Esc 취소·실행 취소·저장을 지원한다',async()=>{
+  const {context,page}=await freshPage();
+  try{
+    await page.locator('[data-assembly-tool=place]').click();
+    await page.locator('#focusPartBtn').click();
+    const start=await page.evaluate(()=>{
+      const part=state.parts.motor[0],rect=canvas.getBoundingClientRect();
+      for(const local of [[-12,-15,19],[12,-15,19],[-19,-15,0],[0,-15,19],[0,-15,-19],[19,-15,0]]){
+        const [x,y]=projectPoint(partModel(part),local);
+        if(pickPart(x,y)?.id!==part.id)continue;
+        if(document.elementFromPoint(rect.left+x,rect.top+y)!==canvas)continue;
+        return {x:rect.left+x,y:rect.top+y,pos:[...part.pos],yaw:state.yaw,pitch:state.pitch};
+      }
+      throw new Error('No visible body pick area');
+    });
+    await page.mouse.move(start.x,start.y);await page.mouse.down();
+    await page.mouse.move(start.x+65,start.y+20,{steps:5});
+    const moved=await page.evaluate(()=>({pos:[...state.parts.motor[0].pos],yaw:state.yaw,pitch:state.pitch}));
+    assert.notDeepEqual(moved.pos,start.pos);assert.equal(moved.pos[1],start.pos[1]);
+    assert.equal(moved.yaw,start.yaw);assert.equal(moved.pitch,start.pitch);
+    await page.mouse.move(start.x,start.y,{steps:5});
+    const returned=await page.evaluate(()=>state.parts.motor[0].pos);
+    returned.forEach((value,i)=>assert.ok(Math.abs(value-start.pos[i])<1e-8,'returning the cursor to its start must restore exact displacement'));
+    await page.mouse.move(start.x+65,start.y+20,{steps:5});
+    await page.keyboard.press('Escape');await page.mouse.up();
+    assert.deepEqual(await page.evaluate(()=>state.parts.motor[0].pos),start.pos);
+    await page.mouse.move(start.x,start.y);await page.mouse.down();
+    await page.mouse.move(start.x+65,start.y+20,{steps:5});await page.mouse.up();
+    await page.waitForFunction(()=>JSON.parse(localStorage.getItem(PROJECT_STORAGE_KEY))?.parts.motor[0]?.pos[0]!==0);
+    await page.locator('#undoBtn').click();
+    assert.deepEqual(await page.evaluate(()=>state.parts.motor[0].pos),start.pos);
+    await page.locator('#redoBtn').click();
+    assert.notDeepEqual(await page.evaluate(()=>state.parts.motor[0].pos),start.pos);
+  }finally{await context.close();}
+});
+
+test('사각 평면 핸들과 회전 링은 실제 3D 평면·축을 기준으로 조작한다',async()=>{
+  const {context,page}=await freshPage();
+  try{
+    await page.locator('[data-assembly-tool=place]').click();await page.locator('#focusPartBtn').click();
+    const plane=page.locator('.gizmo-plane[data-gizmo-plane="1"]');
+    assert.ok(await plane.isVisible());
+    const box=await plane.boundingBox(),before=await page.evaluate(()=>({pos:[...state.parts.motor[0].pos],joints:{...state.parts.motor[0].joints}}));
+    await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();
+    await page.mouse.move(box.x+box.width/2+45,box.y+box.height/2+15,{steps:4});await page.mouse.up();
+    const after=await page.evaluate(()=>state.parts.motor[0].pos);
+    assert.notEqual(after[0],before.pos[0]);assert.notEqual(after[2],before.pos[2]);assert.equal(after[1],before.pos[1]);
+    await page.locator('#directRotateBtn').click();
+    const points=await page.evaluate(()=>{
+      const part=state.parts.motor[0],radius=gizmoRadius()*(.85+1*.16),rect=canvas.getBoundingClientRect();
+      return [Math.PI*.25,Math.PI*.45].map(angle=>{
+        const p=projectWorldPoint([part.pos[0]+radius*Math.sin(angle),part.pos[1],part.pos[2]+radius*Math.cos(angle)]);
+        return {x:p[0]+rect.left,y:p[1]+rect.top};
+      });
+    });
+    // Target the actual ring hit region; body movement is disabled in rotation mode.
+    await page.mouse.move(points[0].x,points[0].y);await page.mouse.down();
+    assert.equal(await page.evaluate(()=>state.drag?.kind),'gizmo');
+    assert.equal(await page.evaluate(()=>state.drag?.axis),1);
+    await page.mouse.move(points[1].x,points[1].y,{steps:8});await page.mouse.up();
+    const rotation=await page.evaluate(()=>({rot:state.parts.motor[0].rot,joints:state.parts.motor[0].joints,bottom:groupBottom(placementGroup(state.parts.motor[0]))}));
+    assert.ok(Math.abs(rotation.rot[1]-36)<1,'right-hand Y ring should rotate 36 degrees');
+    assert.deepEqual(rotation.joints,before.joints);assert.ok(Math.abs(rotation.bottom)<1e-8);
+    if(process.env.PLACEMENT_SCREENSHOT)await page.screenshot({path:process.env.PLACEMENT_SCREENSHOT});
+  }finally{await context.close();}
+});
+
+test('좁은 화면에서도 배치 도구가 부품 목록을 가리지 않고 평면 핸들의 키보드 포커스가 유지된다',async()=>{
+  const {context,page}=await freshPage();
+  try{
+    await page.locator('[data-assembly-tool=place]').click();
+    const center=await page.locator('.gizmo-center').boundingBox();
+    await page.mouse.move(center.x+center.width/2,center.y+center.height/2);await page.mouse.down();
+    await page.mouse.move(center.x+center.width/2+30,center.y+center.height/2+10,{steps:3});await page.mouse.up();
+    assert.match(await page.locator('#transformReadout').innerText(),/Esc/);
+    for(const width of [390,768,980]){
+      await page.setViewportSize({width,height:844});
+      const toolbar=await page.locator('#placementToolbar').boundingBox(),list=await page.locator('aside.panel').boundingBox();
+      assert.ok(toolbar.y+toolbar.height<=list.y,`${width}px placement toolbar and parts list must not overlap`);
+      assert.ok(toolbar.x>=0&&toolbar.x+toolbar.width<=width);
+      assert.equal(await page.locator('#directMoveBtn').evaluate(button=>{const rect=button.getBoundingClientRect();return document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2)===button;}),true,'button center must not be covered by another panel');
+    }
+    await page.setViewportSize({width:1440,height:900});await page.locator('#focusPartBtn').click();
+    const handle=page.getByRole('button',{name:'책상과 나란히 XZ 이동',exact:true});
+    await handle.focus();const x=await page.evaluate(()=>state.parts.motor[0].pos[0]);
+    await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');
+    assert.ok(Math.abs(await page.evaluate(()=>state.parts.motor[0].pos[0])-x-.2)<1e-8);
+    assert.equal(await handle.evaluate(element=>element===document.activeElement),true);
+  }finally{await context.close();}
+});
+
+test('기울어진 부품에서도 회전 링 방향키는 같은 월드 축을 사용한다',async()=>{
+  const {context,page}=await freshPage();
+  try{
+    await page.locator('[data-assembly-tool=place]').click();await page.locator('#focusPartBtn').click();
+    await page.evaluate(()=>{setPlacementAngle(state.parts.motor[0],2,90);draw();});
+    await page.locator('#directRotateBtn').click();
+    const before=await page.evaluate(()=>eulerRotation(state.parts.motor[0].rot));
+    await page.getByRole('button',{name:'X축으로 회전',exact:true}).focus();await page.keyboard.press('ArrowRight');
+    const result=await page.evaluate(before=>({actual:eulerRotation(state.parts.motor[0].rot),expected:mul(rx(5*Math.PI/180),before),bottom:groupBottom(placementGroup(state.parts.motor[0]))}),before);
+    result.actual.forEach((value,i)=>assert.ok(Math.abs(value-result.expected[i])<1e-8));
+    assert.ok(Math.abs(result.bottom)<1e-8);
+    assert.equal(await page.locator('#gizmoOverlay').evaluate(element=>getComputedStyle(element).touchAction),'none');
+  }finally{await context.close();}
 });

@@ -5,7 +5,8 @@
   const FORMAT = 'notifyi-digital-twin';
   const VERSION = 2;
   const LEGACY_DESK_Y_OFFSET = 1.58;
-  const TYPES = ['motor', 'bracket', 'connector', 'opencr', 'laptop'];
+  const OPTIONAL_TYPES = new Set(['linkLong', 'linkShort']);
+  const TYPES = ['motor', 'bracket', 'connector', 'opencr', 'laptop', ...OPTIONAL_TYPES];
   const FACES = new Set(['front', 'back', 'right', 'left', 'top', 'bottom']);
   const TTL_PORTS = { motor: 2, opencr: 3 };
 
@@ -42,8 +43,9 @@
     const input = object(source.parts, '부품 목록');
     const parts = {};
     for (const key of TYPES) {
-      const list = input[key];
-      if (!Array.isArray(list) || list.length < 1 || list.length > 64) invalid(`${key} 개수는 1~64개여야 합니다.`);
+      const optional = OPTIONAL_TYPES.has(key), minimum = optional ? 0 : 1;
+      const list = optional && input[key] === undefined ? [] : input[key];
+      if (!Array.isArray(list) || list.length < minimum || list.length > 64) invalid(`${key} 개수는 ${minimum}~64개여야 합니다.`);
       parts[key] = list.map((item, index) => {
         const part = object(item, `${key} #${index + 1}`), id = `${key}-${index + 1}`;
         if (part.id !== id) invalid(`${key} ID 순서가 올바르지 않습니다.`);
@@ -131,7 +133,7 @@
   function capture(parts) {
     const output = {};
     for (const key of TYPES) {
-      output[key] = parts[key].map(part => {
+      output[key] = (parts[key] ?? (OPTIONAL_TYPES.has(key) ? [] : undefined)).map(part => {
         const item = { id:part.id, pos:[...part.pos], rot:[...part.rot] };
         if (key === 'motor') {
           item.joints = { A:part.joints.A, B:part.joints.B };

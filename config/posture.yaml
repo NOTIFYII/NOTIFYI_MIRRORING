@@ -1,14 +1,13 @@
 # 자세 모방 루프 설정.
 #
-# 카메라로 본 사람의 시상면 굽힘각을 지연 버퍼에 넣고, N초 뒤에 로봇이 재생한다.
+# 카메라로 본 사람의 자세를 최신값으로 판정하고, 나쁜 자세가 지속될 때만
+# 미리 정한 고정 포즈를 실행한다.
 
 echo:
-  delay_sec: 0.8          # 한 템포. 0.8초면 자연스럽게 따라오는 느낌
   control_hz: 50          # 제어 스레드 주기. 인식 프레임레이트와 무관하다
-  buffer_seconds: 6.0     # 링 버퍼 길이. delay 보다 넉넉해야 한다
 
 perception:
-  # 노트북 내장 카메라를 사용한다. 장치 번호가 다른 환경에서는
+  # 기본은 로봇에 연결된 USB 카메라를 사용한다. 장치 번호가 다른 환경에서는
   # --camera 인자로 덮어쓴다.
   camera: /dev/video0
   # 현재 레포에 포함된 lite 모델로 시작한다. full/heavy는 모델 파일을
@@ -17,7 +16,6 @@ perception:
   width: 640
   height: 480
   min_visibility: 0.5     # 이 아래면 사람을 못 본 것으로 친다
-  use_saved_reference: false  # 자세 반응 MVP는 사용자별 캘리브레이션을 쓰지 않음
   # 정면 카메라를 가정한다. 시상면 각은 world landmark 의 z(깊이)로 잡는데,
   # 단일 RGB 카메라에서 z 는 가장 노이즈가 큰 축이다. 흔들리면 카메라를
   # 측면에 두는 편이 훨씬 안정적이다.
@@ -25,20 +23,30 @@ perception:
   invert_neck: false
 
 angles:
-  max_torso_pitch_deg: 60   # posture_trigger 시연용 과장 포즈 상한
-  max_neck_pitch_deg: 35    # 목 관절의 현재 소프트 한계(+/-35도)
+  max_torso_pitch_deg: 30   # ID 2에서 확인된 s 방향 최대 시험 범위
+  max_neck_pitch_deg: 2     # ID 3의 방향만 확인됨; 범위는 임시 제한
+  max_torso_yaw_deg: 30
+  max_torso_roll_deg: 30
+  max_neck_yaw_deg: 30
+  max_neck_roll_deg: 30
   median_window: 7          # 7프레임이면 스파이크 방어하면서 지연 최소화
   smoothing_alpha: 0.55     # 상체용. 0.55면 반응 빠르면서 떨림 억제
   neck_smoothing_alpha: 0.35  # 2D 비율은 Z축보다 안정적 → 적당히 반응
 
-# 상체각을 4축에 나누는 비율. 합이 1.0.
-# 베이스는 위쪽 4단 전체를 이고 있어 모멘트가 가장 크므로 가장 적게 준다.
-# 실제로 base_pitch 가 과부하(0x20)로 한 번 고장난 적이 있다.
+# 새 6축 구조에서 카메라 보정 관절·방향을 실물로 확인하지 못해 기본 OFF.
+# 현재 관절 목록에는 neck_pitch가 없고 아래 joint는 neck_yaw다.
+# 카메라 pitch 안정화로 간주하거나 검증 없이 ON으로 바꾸지 않는다.
+# 노트북 웹캠을 사용할 때는 --no-camera-gimbal을 명시할 수 있다.
+camera_gimbal:
+  enabled: false
+  joint: head_pitch
+
+# 입력 축을 실제 관절에 연결한다. 현재는 몸통·머리 pitch만 구동한다.
 distribution:
-  base_pitch: 0.15
-  waist_pitch: 0.25
-  spine_lower_pitch: 0.30
-  spine_upper_pitch: 0.30
+  torso_pitch:
+    body_pitch: 1.0
+  neck_pitch:
+    head_pitch: 1.0
 
 motion:
   profile_velocity: 40
@@ -73,10 +81,14 @@ safety:
 
 # 사용자 실험 조건. 정상 자세에서는 로봇이 중립을 유지하고 움직이지 않는다.
 experiment:
-  condition: posture_trigger  # posture_trigger | voice | mirror(legacy)
+  condition: posture_trigger
   action_duration_sec: 1.0
   response_timeout_sec: 15.0
   log_dir: data/runs
+
+# 로그 분석 전용 설정. 로봇 제어/자세 판정에는 영향을 주지 않는다.
+telemetry:
+  recovery_confirm_sec: 1.0  # good 후보가 관측된 시간 기준으로 회복 확정
 
 # posture_trigger에서만 사용하는 고정 개입 포즈.
 # 사용자의 관측 각도를 복사하지 않고, 자세 라벨에 따라 이 값만 호출한다.
@@ -87,18 +99,12 @@ intervention:
   action_duration_sec: 1.5
   max_event_age_sec: 0.75  # 실행 직전 최신 자세와 이벤트 시각을 재확인
   poses:
-    # 목·상체·어깨선 중 어느 항목이 나빠도 이 하나의 과장 포즈를 호출한다.
-    # 4개 몸통 관절에 분배되므로 작은 값은 겉으로 거의 보이지 않는다.
-    # 몸통 60도는 4개 관절에 분배된다. 목은 현재 관절 소프트 한계가
-    # 35도이므로 50도를 요청해도 실제 목표는 안전 게이트에서 제한된다.
+    # 새 2축 구조에 맞춘 제한된 시험 포즈. 모터 범위는 JointMapper에서도
+    # 별도로 제한한다.
     bad_posture:
-      torso_pitch_deg: 60.0
-      neck_pitch_deg: 35.0
-
-# TTS는 별도 스레드에서 실행된다. 기본은 로그만 남기는 dry-run이다.
-audio:
-  tts:
-    enabled: false
-    command: [espeak-ng, -v, ko]
-    cooldown_sec: 8.0
-    timeout_sec: 10.0
+      torso_pitch_deg: 30.0
+      neck_pitch_deg: 2.0
+      torso_yaw_deg: 0.0
+      torso_roll_deg: 0.0
+      neck_yaw_deg: 0.0
+      neck_roll_deg: 0.0

@@ -74,6 +74,8 @@ class ControlLoop(threading.Thread):
         self.mapper = mapper
         self.motion_enabled = True
         self._hardware_initialized = False
+        self._holding_position = False
+        self._output_is_hold = False
         self.writer = writer
         self.period = 1.0 / echo["control_hz"]
         self.safety_gate = safety_gate or SafetyGate(mapper, config)
@@ -115,12 +117,31 @@ class ControlLoop(threading.Thread):
         self._camera_gimbal_enabled = bool(camera_gimbal.get("enabled", False))
         self._camera_gimbal_joint = camera_gimbal.get(
             "joint", getattr(mapper, "neck_joint", "neck_pitch"))
+        self._camera_body_joint = camera_gimbal.get("body_joint")
+        self._camera_tick_ratio = float(camera_gimbal.get("tick_ratio", 1.0))
+        if self._camera_tick_ratio not in (-1.0, 1.0):
+            raise MappingError("camera_gimbal.tick_ratio는 -1 또는 1이어야 합니다")
+        if self._camera_gimbal_enabled and self._camera_body_joint:
+            if self._camera_body_joint not in mapper.joints or self._camera_gimbal_joint not in mapper.joints:
+                raise MappingError("카메라 보정 관절이 설정에 없습니다")
+
+    def _coupled_camera_targets(self, targets):
+        result = dict(targets)
+        if not self._camera_gimbal_enabled or not self._camera_body_joint:
+            return result
+        body, head = self._camera_body_joint, self._camera_gimbal_joint
+        delta = self.mapper.position_delta(body, self.neutral[body], result[body])
+        result[head] = self.mapper.clamp_target(
+            head, self.neutral[head] + self._camera_tick_ratio * delta)
+        return result
 
     def _targets_for_pose(self, pose):
         """고정 포즈를 만들고 탑재 카메라 관절은 역회전으로 보정한다."""
         targets = dict(self.mapper.to_targets(pose))
         if not self._camera_gimbal_enabled:
             return targets
+        if self._camera_body_joint:
+            return self._coupled_camera_targets(targets)
 
         joint = self._camera_gimbal_joint
         joints = getattr(self.mapper, "joints", {})
@@ -222,11 +243,14 @@ class ControlLoop(threading.Thread):
         """감지 손실 순간의 실측 위치를 새 목표로 잡아 진행 중인 이동을 멈춘다."""
         if self.writer is None:
             return
-        positions = self.writer.read_positions()
+        holder = getattr(self.writer, "hold_current_positions", None)
+        positions = holder() if callable(holder) else self.writer.read_positions()
+        self._holding_position = callable(holder)
         if set(positions) != set(self.mapper.joints):
             raise WriterError("감지 손실 시 모든 관절의 위치를 확인하지 못했습니다")
         for name, position in positions.items():
-            if not allow_outside_limits and not self.mapper.within_limits(name, position):
+            observed_limits = getattr(self.mapper, "within_observation_limits", self.mapper.within_limits)
+            if not allow_outside_limits and not observed_limits(name, position):
                 raise WriterError(f"{name}: 감지 손실 시 실측 위치가 운용 범위 밖입니다")
         self.measured_positions = dict(positions)
         self.measured_at = time.monotonic()
@@ -240,7 +264,9 @@ class ControlLoop(threading.Thread):
         때만 고정 포즈로 이동한다. 정상 자세가 확인되면 중립으로 복귀하며
         토크는 유지한다. 사람 미감지 시 목표를 유지하고 자동 복귀하지 않는다.
         """
+        self._output_is_hold = False
         if not person_visible:
+            self._output_is_hold = True
             # 미감지를 zero 복귀 신호로 취급하지 않는다. 현재 목표를 유지해
             # 카메라 가림/프레임 누락 때 로봇이 갑자기 움직이지 않게 한다.
             with self._behavior_lock:
@@ -291,6 +317,7 @@ class ControlLoop(threading.Thread):
 
         # 평상시에는 사용자의 자세를 따라가지 않고 시작 시점의 기준 자세를
         # 유지한다. 토크를 풀면 세로 컬럼이 자중으로 무너질 수 있다.
+        self._output_is_hold = True
         return dict(self._rest_targets), True
 
     def run(self):
@@ -305,7 +332,8 @@ class ControlLoop(threading.Thread):
                     # 유일한 버스 소유자인 제어 스레드에서 진행 중인 이동을
                     # 실측 위치 Goal로 멈춘다. zero 이동/토크 해제는 하지 않는다.
                     self._capture_hold_position(allow_outside_limits=True)
-                    self.writer.write_targets(self.commanded)
+                    if not self._holding_position:
+                        self.writer.write_targets(self.commanded)
                 except Exception as exc:
                     if self.error is None:
                         self.error = exc
@@ -317,6 +345,8 @@ class ControlLoop(threading.Thread):
         if self.writer is not None and self.motion_enabled:
             self.writer.prepare()
             self.commanded = self.writer.read_positions()
+            if callable(getattr(self.writer, "hold_current_positions", None)):
+                self._capture_hold_position()
             self._rest_targets = dict(self.commanded)
             self._hardware_initialized = True
             self.measured_positions = dict(self.commanded)
@@ -355,7 +385,14 @@ class ControlLoop(threading.Thread):
                 now, person_visible, state, posture_label)
 
             # 일반 추적, 행동 재생, 중립 복귀 모두 같은 관문을 통과한다.
-            limited = self.safety_gate.limit_targets(self.commanded, desired)
+            if self._output_is_hold and self._holding_position:
+                limited = dict(self.commanded)
+            else:
+                limited = self.safety_gate.limit_targets(self.commanded, desired)
+                if not self._output_is_hold:
+                    limited = self.safety_gate.limit_targets(
+                        self.commanded, self._coupled_camera_targets(limited))
+                self._holding_position = False
             if self.writer is not None:
                 validate_transition = getattr(
                     self.safety_gate, "validate_single_turn_transition", None)
@@ -369,7 +406,8 @@ class ControlLoop(threading.Thread):
                     self.writer.set_torque(False)
                 else:
                     # 토크 ON 전에 현재 목표를 써 저장된 이전 Goal로 튀지 않게 한다.
-                    self.writer.write_targets(limited)
+                    if not (self._output_is_hold and self._holding_position):
+                        self.writer.write_targets(limited)
                     self.writer.set_torque(True)
 
             next_tick += self.period
@@ -413,7 +451,7 @@ def check_pose_within_limits(writer, mapper):
     folded = []
     for name, spec in joints.items():
         position = positions.get(name)
-        if position is None or not mapper.within_limits(name, position):
+        if position is None or not mapper.within_observation_limits(name, position):
             folded.append(f"  {name} 현재 {position}, 운용 범위 "
                           f"zero {spec['zero_position']}, 상대 "
                           f"{spec.get('relative_min_deg', '-')}~"

@@ -223,6 +223,16 @@ class JointMapper:
         return (spec["min_position"] <= position <= spec["max_position"]
                 and (bounds is None or bounds[0] <= position - spec["zero_position"] <= bounds[1]))
 
+    def within_observation_limits(self, name, position):
+        """실측의 작은 오차만 허용한다. 정상 움직임 목표 제한은 넓히지 않는다."""
+        if not math.isfinite(position):
+            return False
+        tolerance = float(self._joints[name].get("measurement_tolerance_ticks", 0))
+        if not math.isfinite(tolerance) or not 0 <= tolerance <= 12:
+            raise MappingError("실측 오차 허용치는 0~12 ticks여야 합니다")
+        bounded = self.clamp_target(name, position)
+        return abs(self.position_delta(name, position, bounded)) <= tolerance
+
 
 def spec_axis(spec):
     """새 설정에서 input_axis의 축 이름을 추출한다."""

@@ -26,7 +26,7 @@ perception:
 
 angles:
   max_torso_pitch_deg: 30   # ID 2에서 확인된 s 방향 최대 시험 범위
-  max_neck_pitch_deg: 2     # 피드백 동작 출력 제한; 관절 운용 범위 ±30도와 별개
+  max_neck_pitch_deg: 2     # 단독 피드백 제한. 카메라 보정은 별도로 관절 ±30도 내에서 실행
   max_torso_yaw_deg: 30
   max_torso_roll_deg: 30
   max_neck_yaw_deg: 30
@@ -35,13 +35,13 @@ angles:
   smoothing_alpha: 0.55     # 상체용. 0.55면 반응 빠르면서 떨림 억제
   neck_smoothing_alpha: 0.35  # 2D 비율은 Z축보다 안정적 → 적당히 반응
 
-# 새 6축 구조에서 카메라 보정 관절·방향을 실물로 확인하지 못해 기본 OFF.
-# 현재 관절 목록에는 neck_pitch가 없고 아래 joint는 neck_yaw다.
-# 카메라 pitch 안정화로 간주하거나 검증 없이 ON으로 바꾸지 않는다.
-# 노트북 웹캠을 사용할 때는 --no-camera-gimbal을 명시할 수 있다.
+# 몸통 숙임을 머리 들기로 상쇄하는 목표 기반 보정. 영상/IMU 폐루프 안정화는 아님.
+# 사용자 확인: ID 2=s(-ticks) 몸통 숙임, ID 3=s(-ticks) 머리 들기.
 camera_gimbal:
-  enabled: false
+  enabled: true
   joint: head_pitch
+  body_joint: body_pitch
+  tick_ratio: 1.0            # 몸통 -341 ticks → 머리 -341 ticks (물리적으로 반대 회전)
 
 # 몸통 입력을 body_pitch에 보내고, 목 입력은 role: neck 관절에 보낸다.
 distribution:

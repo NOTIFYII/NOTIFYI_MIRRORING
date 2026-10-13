@@ -124,6 +124,26 @@ class JointWriter:
                 high = min(spec["max_position"], spec["zero_position"] + math.floor(spec["relative_max_deg"] * TICKS_PER_DEG))
                 if not math.isfinite(ticks) or not low <= ticks <= high:
                     raise WriterError(f"{name}: 확장 위치 목표가 소프트웨어 한계 밖입니다: {ticks}")
+        self._send_targets(targets)
+
+    def hold_current_positions(self):
+        """새 실측 위치에 한해서 작은 오차를 허용하고 현재 위치 유지 Goal을 쓴다."""
+        positions = self.read_positions()
+        for name, position in positions.items():
+            spec = self._joint_specs.get(name)
+            if not spec:
+                raise WriterError(f"{name}: 유지 명령에 관절 설정이 필요합니다")
+            tolerance = float(spec.get("measurement_tolerance_ticks", 0))
+            if not math.isfinite(tolerance) or not 0 <= tolerance <= 12:
+                raise WriterError(f"{name}: 실측 오차 허용치가 유효하지 않습니다")
+            low = max(spec["min_position"], spec["zero_position"] + math.ceil(spec["relative_min_deg"] * TICKS_PER_DEG))
+            high = min(spec["max_position"], spec["zero_position"] + math.floor(spec["relative_max_deg"] * TICKS_PER_DEG))
+            if not low - tolerance <= position <= high + tolerance:
+                raise WriterError(f"{name}: 실측 유지 위치가 허용 오차 밖입니다: {position}")
+        self._send_targets(positions)
+        return positions
+
+    def _send_targets(self, targets):
         self._sync.clearParam()
         for name, ticks in targets.items():
             motor_id = self._joint_ids.get(name)
@@ -143,10 +163,14 @@ class JointWriter:
         """{관절 이름: 현재 tick}."""
         positions = {}
         for name, motor_id in self._joint_ids.items():
-            value, comm, err = self._packet.read4ByteTxRx(self._port, motor_id,
-                                                          132)
+            for attempt in range(2):
+                value, comm, err = self._packet.read4ByteTxRx(self._port, motor_id, 132)
+                if comm == COMM_SUCCESS:
+                    break
             if comm != COMM_SUCCESS or err:
-                continue
+                detail = (self._packet.getTxRxResult(comm) if comm != COMM_SUCCESS
+                          else self._packet.getRxPacketError(err))
+                raise WriterError(f"현재 위치를 읽지 못한 관절: {name} (ID {motor_id}): {detail}")
             # 몸통 mode 4는 signed 연속 좌표를 그대로 보존한다.
             # 기존 mode 3의 단회전 정규화는 머리축에만 적용한다.
             if self._joint_specs.get(name, {}).get("operating_mode", 3) == 4:

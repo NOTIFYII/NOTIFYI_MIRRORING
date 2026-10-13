@@ -30,6 +30,7 @@ joints:
     max_position: 46
     relative_min_deg: -30
     relative_max_deg: 4        # 정상 실측 40 ticks(+3.4도)를 허용하는 소폭 여유
+    measurement_tolerance_ticks: 12  # 실측/정지 유지에만 약 1도 여유. 목표 한계는 그대로
     wrap_position: false      # 음수 목표 그대로 전송; 단회전 modulo 금지
 
   head_pitch:
@@ -43,6 +44,7 @@ joints:
     max_position: 4095
     relative_min_deg: -30      # 사용자 확인 범위, zero는 1022 유지
     relative_max_deg: 30
+    measurement_tolerance_ticks: 12  # 움직임 목표가 아닌 실측/정지 유지의 오차 허용
     wrap_position: true
 
 unsupported_behaviors:

@@ -316,6 +316,67 @@ def check_pose_within_limits(writer, mapper):
                        + "\n손으로 컬럼을 세운 뒤 다시 실행하세요.")
 
 
+def initialize_to_neutral(writer, mapper, config):
+    """현재 위치를 확인한 뒤 제한된 속도로 설정된 zero 위치로 이동한다."""
+    settings = config.get("startup_initialization") or {}
+    if not settings.get("enabled", False):
+        return
+
+    tolerance = int(settings.get("tolerance_ticks", 15))
+    timeout = float(settings.get("timeout_sec", 10.0))
+    settle_sec = float(settings.get("settle_sec", 0.3))
+    period = 1.0 / float(config["echo"]["control_hz"])
+    max_step_ticks = (float(config["motion"]["max_step_deg"])
+                      * 4096.0 / 360.0)
+    if tolerance < 0 or timeout <= 0 or settle_sec < 0 or max_step_ticks <= 0:
+        raise BusError("startup_initialization 설정값이 유효하지 않습니다.")
+
+    positions = writer.read_positions()
+    neutral = mapper.neutral_targets()
+    out_of_range = []
+    for name, spec in mapper.joints.items():
+        current, zero = positions[name], neutral[name]
+        delta = ((current - zero + 2048) % 4096) - 2048
+        low = float(spec.get("relative_min_deg", -180)) * 4096 / 360
+        high = float(spec.get("relative_max_deg", 180)) * 4096 / 360
+        if not low <= delta <= high:
+            out_of_range.append(
+                f"{name} 현재 {current}, zero {zero}, 상대 위치 "
+                f"{delta:.0f} ticks (허용 {low:.0f}~{high:.0f})")
+    if out_of_range:
+        raise BusError("초기 위치가 zero 운용범위를 벗어나 초기화를 중단합니다.\n"
+                       + "\n".join(out_of_range)
+                       + "\n토크를 걸지 말고 관절을 안전 범위 안에 둔 뒤 다시 실행하세요.")
+
+    print(f"시작 초기화: 현재={positions}, zero_position={neutral}", flush=True)
+    writer.set_torque(True)
+    deadline = time.monotonic() + timeout
+    settled_at = None
+    while time.monotonic() < deadline:
+        targets = {}
+        for name, zero in neutral.items():
+            delta = ((zero - positions[name] + 2048) % 4096) - 2048
+            step = max(-max_step_ticks, min(max_step_ticks, delta))
+            targets[name] = int(round((positions[name] + step) % 4096))
+        writer.write_targets(targets)
+        positions = writer.read_positions()
+        at_zero = all(
+            abs(((positions[name] - zero + 2048) % 4096) - 2048) <= tolerance
+            for name, zero in neutral.items())
+        if at_zero:
+            if settled_at is None:
+                settled_at = time.monotonic()
+            elif time.monotonic() - settled_at >= settle_sec:
+                print(f"zero_position 도달 확인: {positions}", flush=True)
+                return
+        else:
+            settled_at = None
+        time.sleep(period)
+
+    raise BusError(f"시작 초기화 시간 초과: zero={neutral}, 현재={positions}. "
+                   "자세 반응을 시작하지 않았습니다. 로봇을 지지하고 상태를 확인하세요.")
+
+
 def print_status_line(now, status_mark, control, measured, played, fps,
                       condition="mirror"):
     """헤드리스 모드에서 0.5초마다 상태를 한 줄로 찍는다."""
@@ -401,6 +462,7 @@ def run(args):
 
     writer = None
     control = None
+    startup_initialization_failed = False
     previous = None
     frames = 0
     fps = 0.0
@@ -440,6 +502,13 @@ def run(args):
             packet, port = stack.enter_context(open_bus())
             writer = build_writer((packet, port), mapper, config)
             check_pose_within_limits(writer, mapper)
+            if (config.get("startup_initialization") or {}).get("enabled", False):
+                try:
+                    writer.prepare()
+                    initialize_to_neutral(writer, mapper, config)
+                except Exception:
+                    startup_initialization_failed = True
+                    raise
 
         control = ControlLoop(buffer, mapper, writer, config, safety_gate,
                               condition=condition)
@@ -668,22 +737,26 @@ def run(args):
         if writer is not None and (control is None or control.motion_enabled):
             # 모터를 먼저 정리한다. TTS 종료는 외부 프로세스가 반환될 때까지
             # 기다릴 수 있으므로 하드웨어 정리보다 앞에 두면 안 된다.
-            try:
-                # 정리 경로도 운용 한계 검사를 건너뛰지 않는다.
-                safe_neutral = safety_gate.clamp_targets(mapper.neutral_targets())
-                writer.write_targets(safe_neutral)
-                time.sleep(1.0)
-                print("중립 복귀 후 토크 해제 완료")
-            except Exception as exc:
-                print(f"중립 복귀 중 오류: {exc}", file=sys.stderr)
-            finally:
-                # 중립 복귀 실패와 토크 해제를 묶지 않는다. 일부 관절에서
-                # 통신이 실패해도 writer가 가능한 관절을 계속 시도한다.
+            if startup_initialization_failed:
+                print("시작 초기화 실패: 추가 이동/토크 해제를 생략했습니다. "
+                      "로봇을 지지한 채 모터 상태를 확인하세요.", file=sys.stderr)
+            else:
                 try:
-                    writer.set_torque(False)
-                    print("토크 해제 완료")
+                    # 정리 경로도 운용 한계 검사를 건너뛰지 않는다.
+                    safe_neutral = safety_gate.clamp_targets(mapper.neutral_targets())
+                    writer.write_targets(safe_neutral)
+                    time.sleep(1.0)
+                    print("중립 복귀 후 토크 해제 완료")
                 except Exception as exc:
-                    print(f"토크 해제 중 오류: {exc}", file=sys.stderr)
+                    print(f"중립 복귀 중 오류: {exc}", file=sys.stderr)
+                finally:
+                    # 중립 복귀 실패와 토크 해제를 묶지 않는다. 일부 관절에서
+                    # 통신이 실패해도 writer가 가능한 관절을 계속 시도한다.
+                    try:
+                        writer.set_torque(False)
+                        print("토크 해제 완료")
+                    except Exception as exc:
+                        print(f"토크 해제 중 오류: {exc}", file=sys.stderr)
         if response_tracker is not None:
             response_tracker.close()
         if speaker is not None:

@@ -1,98 +1,46 @@
-# Notifyi 6축 관절 매핑.
+# Notifyi 초기 2축 매핑 (실물 방향 확인 중).
 #
-# 현재 측정된 정상 기준 위치를 zero_position으로 사용한다. ID 1과 8은
-# 버스에는 연결되어 있지만 유휴 모터라 이 파일의 joints에는 포함하지 않는다.
+# 최신 실물 확인 기준:
+# - ID 2: 몸통 앞뒤 기울임. 키보드 텔레옵에서 s가 의도한 방향.
+#   스캔값 4097은 0~4095 단회전 위치 경계값으로 보고 1로 정규화한다.
+# - ID 3: 머리 앞뒤 기울임. 키보드 텔레옵에서 w가 의도한 방향.
+# - ID 3/4 ID 교환은 실행 확인이 없으므로 기존 물리 ID 매핑을 유지한다.
 #
-# 아직 각 모터의 + 방향과 기계적 한계를 확정하지 않았으므로, 초기 통합
-# 테스트는 zero 기준 ±12도 안에서만 허용한다. 실제 방향을 확인한 뒤
-# direction과 상대 범위를 조정한다.
+# ID 2는 zero에서 s 방향으로 최대 30도만 허용한다. 반대 방향은 아직
+# 검증되지 않아 0도로 제한한다. ID 3은 방향만 확인된 상태이므로 임시로
+# zero 기준 ±2도만 허용한다. 기계적 한계 확인 후에만 범위를 넓힌다.
 
 structure:
-  dof: pitch_yaw_roll
-  active_dof: 6
+  dof: pitch
+  active_dof: 2
   units:
-    - {index: 1, driven: 2, axis: yaw, role: waist_lower}
-    - {index: 2, driven: 3, axis: pitch, role: waist_lower}
-    - {index: 3, driven: 4, axis: yaw, role: waist_upper}
-    - {index: 4, driven: 5, axis: pitch, role: waist_upper}
-    - {index: 5, driven: 6, axis: roll, role: neck_base}
-    - {index: 6, driven: 7, axis: yaw, role: neck}
+    - {index: 1, driven: 2, axis: pitch, role: body}
+    - {index: 2, driven: 3, axis: pitch, role: head}
 
 joints:
-  waist_lower_yaw:
+  body_pitch:
     id: 2
     group: torso
-    input_axis: torso_yaw
-    direction: 1              # 텔레옵 w=왼쪽, s=오른쪽
-    zero_position: 1034
+    input_axis: torso_pitch
+    direction: -1             # 입력 + 방향이 텔레옵 s 방향
+    zero_position: 1          # 스캔 4097을 단회전 범위로 정규화
     min_position: 0
     max_position: 4095
-    relative_min_deg: -45
-    relative_max_deg: 45
+    relative_min_deg: -30
+    relative_max_deg: 0
     wrap_position: true
 
-  waist_lower_pitch:
+  head_pitch:
     id: 3
-    group: torso
-    input_axis: torso_pitch
-    direction: -1             # 입력 +가 앞쪽, 텔레옵 s=앞쪽
-    zero_position: 3059
-    min_position: 0
-    max_position: 4095
-    relative_min_deg: -21.1   # zero 3059 -> 2819 ticks
-    relative_max_deg: 12
-    wrap_position: true
-
-  waist_upper_yaw:
-    id: 4
-    group: torso
-    input_axis: torso_yaw
-    direction: 1              # ID 2와 동일: 텔레옵 w=왼쪽, s=오른쪽
-    zero_position: 2040
-    min_position: 0
-    max_position: 4095
-    relative_min_deg: -45
-    relative_max_deg: 45
-    wrap_position: true
-
-  waist_upper_pitch:
-    id: 5
-    group: torso
-    input_axis: torso_pitch
-    direction: 1
-    # 스캔값 4108은 4096 tick 기준으로 12로 정규화한다.
-    zero_position: 12
-    min_position: 0
-    max_position: 4095
-    relative_min_deg: -12
-    relative_max_deg: 12
-    wrap_position: true
-
-  neck_roll:
-    id: 6
     group: neck
-    role: neck
-    input_axis: neck_roll
-    direction: 1
-    # 스캔값 4134는 4096 tick 기준으로 38로 정규화한다.
-    zero_position: 38
+    role: head
+    input_axis: neck_pitch
+    direction: 1              # 입력 + 방향이 텔레옵 w 방향
+    zero_position: 3007
     min_position: 0
     max_position: 4095
-    relative_min_deg: -12
-    relative_max_deg: 12
-    wrap_position: true
-
-  neck_yaw:
-    id: 7
-    group: neck
-    role: neck
-    input_axis: neck_yaw
-    direction: 1
-    zero_position: 3039
-    min_position: 0
-    max_position: 4095
-    relative_min_deg: -12
-    relative_max_deg: 12
+    relative_min_deg: -2       # 방향 확인만 완료; 이동 범위는 미검증
+    relative_max_deg: 2
     wrap_position: true
 
 unsupported_behaviors:

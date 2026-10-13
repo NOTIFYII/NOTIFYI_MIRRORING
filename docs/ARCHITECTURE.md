@@ -8,7 +8,7 @@ BehaviorManager는 로컬 3초 지속 규칙으로 이벤트를 만든다. Gemin
 토크 유지에는 지속 부하가 있으므로 이것을 과부하 보호 기능으로 해석하지 않는다. 하드웨어 오류·통신 실패 시 위치 및 토크 상태가 불확실할 수 있다. 수동 토크 해제는 로봇을 지지한 상태에서 별도 도구로 한다.
 
 ```text
-config/                  main 기준 두 모터 YAML (변경 없음)
+config/                  두 모터 YAML (몸통 mode 4 / 머리 mode 3)
 src/
   main.py                실행 CLI·카메라 루프·모터 제어
   camera/                USB 카메라 입력
@@ -19,6 +19,8 @@ src/
   safety/                출력 제한·감지 손실 상태·watchdog
   telemetry/             JSONL 실험 로그
 scripts/                 현재 환경/카메라/모델/모터 검사 도구
+  inspect_motor_coordinates.py       좌표 읽기·진단
+  enable_body_extended_position.py   ID 2 전용 mode 4 전환 (명시적 apply)
 tests/                   활성 코드와 안전 경로의 하드웨어 없는 테스트
 docs/                    현재 기준 문서
 legacy/

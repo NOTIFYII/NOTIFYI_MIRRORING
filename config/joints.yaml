@@ -2,7 +2,8 @@
 #
 # 최신 실물 확인 기준:
 # - ID 2: 몸통 앞뒤 기울임. 키보드 텔레옵에서 s가 의도한 방향.
-#   스캔값 4097은 0~4095 단회전 위치 경계값으로 보고 1로 정규화한다.
+#   몸통 mode 4에서는 음수 위치도 그대로 사용한다. 과거 단회전 스캔
+#   4097에서 정했던 zero 1을 유지하되 실측 4097을 자동 정규화하지 않는다.
 # - ID 3: 머리 앞뒤 기울임. 키보드 텔레옵에서 w가 의도한 방향.
 # - 이후 ID 3/4를 교환했으며, 현재 ID 3 위치 1022를 머리축 zero로 지정한다.
 #
@@ -23,12 +24,13 @@ joints:
     group: torso
     input_axis: torso_pitch
     direction: -1             # 입력 + 방향이 텔레옵 s 방향
-    zero_position: 1          # 스캔 4097을 단회전 범위로 정규화
-    min_position: 0
-    max_position: 4095
+    operating_mode: 4         # 별도 도구로 실물 전환 후 실행; 자동 전환하지 않음
+    zero_position: 1          # 기존 기준 유지; mode 4 실측과 일치해야 함
+    min_position: -340        # mode 4 소프트웨어 절대 제한 (EEPROM 한계와 별개)
+    max_position: 46
     relative_min_deg: -30
     relative_max_deg: 4        # 정상 실측 40 ticks(+3.4도)를 허용하는 소폭 여유
-    wrap_position: true
+    wrap_position: false      # 음수 목표 그대로 전송; 단회전 modulo 금지
 
   head_pitch:
     id: 3

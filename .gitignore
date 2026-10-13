@@ -13,6 +13,7 @@ venv/
 .venv*/
 data/runs/
 data/motor_coordinates*.json
+data/motor_mode_backups/
 
 # 3D 작업은 별도 브랜치에서 보관하며 main에 추가하지 않는다.
 /tools/digital_twin/

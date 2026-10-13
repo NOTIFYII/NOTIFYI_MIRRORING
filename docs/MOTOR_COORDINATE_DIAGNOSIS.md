@@ -30,9 +30,36 @@ Homing Offset은 Present Position에 더해지는 값이며 mode 3 유효 범위
 이를 바꿨다는 사실만으로 경계 통과가 안전해지는 것은 아니다. YAML zero만 바꾸거나
 차단을 끄거나 `%4096`만 적용해 실행하지 않는다.
 
-mode 4를 선택하면 단회전용 mapper/writer와 시작 검증도 연속 signed 위치에 맞게
-변경해야 한다. 하드웨어 Min/Max Position Limit은 mode 4에서 적용되지 않으므로 모드만
-변경해 현재 앱을 실행하지 않는다. 아직 보정 설정 쓰기나 실물 시험은 수행하지 않았다.
+## 현재 구현된 ID 2 전환 절차
+
+진단에서 ID 2 / 2XL430, mode 3, Drive Mode 0, Offset 0, 현재 39 ticks가 확인됐다.
+몸통 mapper/writer는 mode 4 signed 연속 좌표로 수정했고 앱 시작 시 실제 모드를 확인한다.
+몸통 소프트웨어 한계는 -340~46 ticks이며 머리 ID 3은 mode 3과 zero 1022를 유지한다.
+실제 전환·움직임·하중은 아직 시험하지 않았다.
+
+1. 앱과 위자드를 종료하고 로봇을 물리적으로 지지한다.
+2. 기본 읽기 명령으로 전환 조건을 확인한다.
+3. 지원 조건이 맞으면 명시적 apply로 원본 백업 후 ID 2만 토크를 끄고 mode 4를 쓴다.
+
+```bash
+.venv-mp-pi3/bin/python scripts/enable_body_extended_position.py
+.venv-mp-pi3/bin/python scripts/enable_body_extended_position.py --apply --supported
+```
+
+원본은 `data/motor_mode_backups/`에 시각별 JSON으로 보관하며 기존 파일은 덮어쓰지 않는다.
+토크 해제 후 위치가 운용 범위 밖으로 움직이면 mode 쓰기를 중단한다. 전환 후 모드·오류·
+현재 위치·토크 OFF를 다시 확인한다. ID 3/1/4, Homing Offset, 위치 한계, Goal Position은
+쓰지 않으며 토크를 자동으로 다시 켜지 않는다. 이미 mode 4면 백업·확인만 한다.
+실패 시 설정 일부가 적용됐을 수 있으므로 자동 롤백하지 않고 백업과 실제 상태를 확인한다.
+
+전환 결과 mode 4 / torque 0 / present_position -340~46을 확인한 뒤에만 앱 구동을 검토한다.
+앱이 모델을 준비하고 토크를 켜기 전까지 로봇을 계속 지지한다. 기존 키보드/범위 학습 등
+단회전 전용 도구는 ID 2 mode 4 동작 검증용으로 사용하지 않는다.
+
+mode 4에서는 하드웨어 Min/Max Position Limit이 적용되지 않는다. mapper·gate·writer에서
+소프트웨어 제한을 적용하지만 물리적 하중·전도를 보장하지 않는다. 전원 재인가/재부팅 후
+현재 위치가 단회전 절대값으로 돌아갈 수 있다. 실측이 예를 들어 4043이면 -53으로 자동
+해석하지 않고 시작을 거부한다. 한 바퀴 정보 복원은 별도 실물 검증이 필요하다.
 
 공식 근거: [Homing Offset](https://emanual.robotis.com/docs/en/dxl/x/2xl430-w250/#homing-offset20),
 [Operating Mode](https://emanual.robotis.com/docs/en/dxl/x/2xl430-w250/#operating-mode11).

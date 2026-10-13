@@ -26,6 +26,15 @@ def mapping():
     return config, mapper, SafetyGate(mapper, config)
 
 
+def single_turn_mapping():
+    config = main.load_posture_config()
+    joints = load_joints()
+    joints["body_pitch"].update(operating_mode=3, wrap_position=True,
+                                min_position=0, max_position=4095)
+    mapper = JointMapper(joints, config["distribution"])
+    return config, mapper, SafetyGate(mapper, config)
+
+
 def test_main_import_and_help_do_not_require_optional_modules():
     probe = """
 import sys, importlib.abc
@@ -68,12 +77,12 @@ def test_main_yaml_still_maps_only_two_driven_ids():
     assert mapper.joint_ids() == {"body_pitch": 2, "head_pitch": 3}
     assert mapper.neutral_targets() == {"body_pitch": 1, "head_pitch": 1022}
     targets = mapper.to_targets(PostureAngles(0, 30, 2, 1))
-    assert targets["body_pitch"] > 3700
+    assert targets["body_pitch"] == -340
     assert targets["head_pitch"] > 1022
     assert all(mapper.within_limits(name, value) for name, value in targets.items())
-    current = {"body_pitch": 4043, "head_pitch": 1022}
+    current = {"body_pitch": -53, "head_pitch": 1022}
     limited = gate.limit_targets(current, mapper.neutral_targets())
-    assert limited["body_pitch"] >= 4043
+    assert limited["body_pitch"] >= -53
     assert all(abs(mapper.position_delta(name, current[name], value))
                <= gate.max_step_ticks + 0.5 for name, value in limited.items())
 
@@ -104,7 +113,7 @@ def test_stale_observation_cannot_satisfy_sustain_timer():
 
 
 def test_single_turn_boundary_jump_is_blocked_before_hardware_write():
-    _, _, gate = mapping()
+    _, _, gate = single_turn_mapping()
     with pytest.raises(ValueError, match="위치 경계"):
         gate.validate_single_turn_transition(
             {"body_pitch": 1, "head_pitch": 1022},
@@ -116,7 +125,7 @@ def test_single_turn_boundary_jump_is_blocked_before_hardware_write():
 
 def test_lost_person_captures_measured_position_instead_of_pending_goal():
     config, mapper, gate = mapping()
-    positions = {"body_pitch": 4043, "head_pitch": 1022}
+    positions = {"body_pitch": -53, "head_pitch": 1022}
     writer = SimpleNamespace(read_positions=lambda: positions)
     loop = main.ControlLoop(None, mapper, writer, config, gate)
     loop.commanded = {"body_pitch": 3900, "head_pitch": 1030}
@@ -206,7 +215,7 @@ def test_control_thread_exit_holds_measured_position_without_zero_or_torque_off(
 
 
 def test_boundary_crossing_stops_without_sending_wrapped_goal():
-    config, mapper, gate = mapping()
+    config, mapper, gate = single_turn_mapping()
     positions = mapper.neutral_targets()
     writes, torques = [], []
     writer = SimpleNamespace(

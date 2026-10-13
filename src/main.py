@@ -398,9 +398,12 @@ def build_writer(stack, mapper, config):
                 "scripts/torque_off.py --clear-errors 로 해제하세요.")
 
     motion = config["motion"]
-    return JointWriter(packet, port, joint_ids,
+    writer = JointWriter(packet, port, joint_ids,
                        profile_velocity=motion["profile_velocity"],
-                       profile_acceleration=motion["profile_acceleration"])
+                       profile_acceleration=motion["profile_acceleration"],
+                       joint_specs=mapper.joints)
+    writer.verify_modes()
+    return writer
 
 
 def check_pose_within_limits(writer, mapper):

@@ -62,8 +62,16 @@ class JointMapper:
             for field in ("zero_position", "min_position", "max_position"):
                 if spec.get(field) is None:
                     raise MappingError(f"{name}: {field} 가 없습니다")
-            if not 0 <= spec["min_position"] <= spec["max_position"] < POSITION_TICKS:
-                raise MappingError(f"{name}: 위치 범위가 0~4095 밖입니다")
+            if spec.get("operating_mode", 3) not in (3, 4):
+                raise MappingError(f"{name}: 지원하는 위치 모드는 3/4입니다")
+            extended = spec.get("operating_mode", 3) == 4
+            if extended and spec.get("wrap_position", False):
+                raise MappingError(f"{name}: 확장 위치 제어에서는 wrap_position을 끄세요")
+            if extended and self._relative_bounds(spec) is None:
+                raise MappingError(f"{name}: 확장 위치 제어는 상대 제한이 필요합니다")
+            low, high = (-1048575, 1048575) if extended else (0, 4095)
+            if not low <= spec["min_position"] <= spec["max_position"] <= high:
+                raise MappingError(f"{name}: 위치 범위가 모드 허용 범위 {low}~{high} 밖입니다")
             if not spec["min_position"] <= spec["zero_position"] <= spec["max_position"]:
                 raise MappingError(f"{name}: zero_position 이 운용 범위 밖입니다")
             direction = spec.get("direction", 1)
@@ -187,6 +195,9 @@ class JointMapper:
             if bounds is not None:
                 delta = max(bounds[0], min(bounds[1], delta))
             return int(round(spec["zero_position"] + delta)) % POSITION_TICKS
+        bounds = self._relative_bounds(spec)
+        if bounds is not None:
+            target = spec["zero_position"] + max(bounds[0], min(bounds[1], target - spec["zero_position"]))
         return int(round(max(spec["min_position"],
                              min(spec["max_position"], target))))
 
@@ -206,7 +217,11 @@ class JointMapper:
             delta = self._shortest_delta(spec["zero_position"], position)
             bounds = self._relative_bounds(spec)
             return bounds is None or bounds[0] <= delta <= bounds[1]
-        return spec["min_position"] <= position <= spec["max_position"]
+        if not math.isfinite(position):
+            return False
+        bounds = self._relative_bounds(spec)
+        return (spec["min_position"] <= position <= spec["max_position"]
+                and (bounds is None or bounds[0] <= position - spec["zero_position"] <= bounds[1]))
 
 
 def spec_axis(spec):

@@ -12,6 +12,7 @@ STATE_TRACKING = "tracking"
 STATE_RETURNING = "returning"
 STATE_IDLE = "idle"
 STATE_SAFE_STOP = "safe_stop"
+STATE_PERSON_LOST = "person_lost_hold"
 
 
 @dataclass
@@ -46,11 +47,10 @@ def max_step_ticks(max_step_deg):
 
 
 class IdlePolicy:
-    """사람이 사라졌을 때의 상태 기계.
+    """사람 감지 손실 시 마지막 목표를 유지하는 상태 기계.
 
-    tracking -> (사람 없음) -> returning -> (중립 도달 후 대기) -> idle
-    idle 에서 토크를 해제한다. 굽은 자세로 계속 버티면 아래 단이 과부하로
-    고장나기 때문이다. 실제로 base_pitch 가 그렇게 한 번 죽었다.
+    tracking -> (짧은 누락은 유예) -> person_lost_hold
+    사람 미감지만으로 중립 이동이나 토크 해제를 시작하지 않는다.
     """
 
     def __init__(self, return_seconds, release_seconds, tolerance_ticks=15,
@@ -64,42 +64,24 @@ class IdlePolicy:
         self.distance_fn = distance_fn or (lambda name, current, target:
                                            target - current)
         self.state = STATE_TRACKING
-        self._left_at = None
         self._missing_since = None
-        self._settled_at = None
 
     def update(self, now, person_visible, current, neutral):
-        """상태를 갱신하고 (state, 토크 유지 여부) 를 돌려준다."""
+        """상태를 갱신하고 (state, 토크 유지 여부) 를 반환한다.
+
+        current와 neutral 인자는 기존 호출부와의 호환을 위해 받지만,
+        사람 감지 손실 시에는 위치나 zero 여부에 따라 목표를 바꾸지 않는다.
+        """
         if person_visible:
             self.state = STATE_TRACKING
-            self._left_at = None
             self._missing_since = None
-            self._settled_at = None
             return STATE_TRACKING, True
 
-        if self.state == STATE_TRACKING:
-            if self._missing_since is None:
-                self._missing_since = now
-            if now - self._missing_since < self.grace_seconds:
-                # 아직 유예 중이다. 마지막 자세를 유지한다.
-                return STATE_TRACKING, True
-            self.state = STATE_RETURNING
-            self._left_at = now
-            self._settled_at = None
+        if self._missing_since is None:
+            self._missing_since = now
+        if now - self._missing_since >= self.grace_seconds:
+            self.state = STATE_PERSON_LOST
 
-        if self.state == STATE_RETURNING:
-            at_neutral = all(
-                abs(self.distance_fn(name, current.get(name, value), value))
-                <= self.tolerance_ticks
-                for name, value in neutral.items())
-            timed_out = (self._left_at is not None
-                         and now - self._left_at >= self.return_seconds)
-            if at_neutral or timed_out:
-                if self._settled_at is None:
-                    self._settled_at = now
-                if now - self._settled_at >= self.release_seconds:
-                    self.state = STATE_IDLE
-                    return STATE_IDLE, False
-            return STATE_RETURNING, True
-
-        return STATE_IDLE, False
+        # Torque stays enabled so gravity cannot collapse the structure.
+        # The control loop must keep its last commanded target until reacquired.
+        return self.state, True

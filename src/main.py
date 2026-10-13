@@ -25,7 +25,7 @@ from src.perception.pose_estimator import (  # noqa: E402
     PoseEstimator, draw_angle_bar, draw_overlay, draw_skeleton,
 )
 from src.perception.posture_features import (  # noqa: E402
-    MedianFilter, clamp_angles, extract_angles, smooth,
+    MedianFilter, PostureAngles, clamp_angles, extract_angles, smooth,
 )
 from src.posture.pose_buffer import PoseBuffer  # noqa: E402
 from src.posture.classifier import classify  # noqa: E402
@@ -40,7 +40,7 @@ from src.robot.joint_writer import JointWriter, WriterError  # noqa: E402
 from src.behavior.behavior_manager import BehaviorManager
 from src.behavior.executor import BehaviorExecutor  # noqa: E402
 from src.safety.supervisor import (  # noqa: E402
-    STATE_IDLE, STATE_SAFE_STOP, STATE_TRACKING, IdlePolicy,
+    STATE_SAFE_STOP, STATE_TRACKING, IdlePolicy,
 )
 from src.safety.gate import SafetyGate  # noqa: E402
 from src.safety.health import HealthMonitor, SafeStopRequested  # noqa: E402
@@ -84,6 +84,11 @@ class ControlLoop(threading.Thread):
 
         self.state = "starting"
         self.commanded = dict(self.neutral)
+        self.measured_positions = None
+        self.measured_at = None
+        self._next_position_read = 0.0
+        self._position_read_period = 0.2
+        self._position_max_age = 0.5
         self.last_targets = dict(self.neutral)
         self.heartbeat_at = time.monotonic()
         self.safe_stop_reason = None
@@ -92,6 +97,7 @@ class ControlLoop(threading.Thread):
         self._behavior_started_at = None
         self._behavior_returning = False
         self._behavior_return_started_at = None
+        self._behavior_settled_at = None
         self._behavior_release_sec = motion["idle_release_sec"]
         self._behavior_released = False
         camera_gimbal = config.get("camera_gimbal") or {}
@@ -140,6 +146,7 @@ class ControlLoop(threading.Thread):
             self._behavior_started_at = time.monotonic()
             self._behavior_returning = False
             self._behavior_return_started_at = None
+            self._behavior_settled_at = None
             self._behavior_released = False
         return True
 
@@ -152,6 +159,7 @@ class ControlLoop(threading.Thread):
             self._behavior_started_at = None
             self._behavior_returning = False
             self._behavior_return_started_at = None
+            self._behavior_settled_at = None
             self._behavior_released = False
         self.stop_event.set()
 
@@ -168,6 +176,7 @@ class ControlLoop(threading.Thread):
                 self._behavior_started_at = None
                 self._behavior_returning = True
                 self._behavior_return_started_at = now
+                self._behavior_settled_at = None
                 return None
             return action.pose
 
@@ -179,13 +188,23 @@ class ControlLoop(threading.Thread):
                 self._behavior_started_at = None
                 self._behavior_returning = True
                 self._behavior_return_started_at = now
+                self._behavior_settled_at = None
 
-    def _at_neutral(self):
+    def _at_neutral(self, now=None):
+        if self.writer is not None and self.motion_enabled:
+            if (self.measured_positions is None or self.measured_at is None
+                    or (now is not None
+                        and now - self.measured_at > self._position_max_age)):
+                return False
+            positions = self.measured_positions
+        else:
+            positions = self.commanded
         distance_fn = getattr(self.mapper, "position_delta", None)
         if distance_fn is None:
             distance_fn = lambda name, current, target: target - current
         return all(
-            abs(distance_fn(name, self.commanded.get(name, value), value)) <= 15
+            name in positions
+            and abs(distance_fn(name, positions[name], value)) <= 15
             for name, value in self.neutral.items())
 
     def _posture_trigger_output(self, now, person_visible, state,
@@ -194,15 +213,19 @@ class ControlLoop(threading.Thread):
 
         대기 중에는 시작 시점의 기준 자세를 토크로 유지하고, 이벤트가 있을
         때만 고정 포즈로 이동한다. 이벤트가 끝나면 중립으로 복귀한 뒤 토크를
-        푼다.
+        푼다. 사람 감지가 끊긴 경우에는 마지막 목표를 유지하고 자동 복귀하지 않는다.
         """
+        if not person_visible:
+            # 미감지를 zero 복귀 신호로 취급하지 않는다. 현재 목표를 유지해
+            # 카메라 가림/프레임 누락 때 로봇이 갑자기 움직이지 않게 한다.
+            return dict(self.commanded), True
+
         behavior_pose = self._behavior_pose(now)
         if behavior_pose is not None:
-            if (person_visible and state == STATE_TRACKING
+            if (state == STATE_TRACKING
                     and posture_label != "good"):
                 return self._targets_for_pose(behavior_pose), True
-            # 사람 이탈·관측 불가·정상 자세 복귀 시 과장 포즈를 끝내고
-            # 중립으로 천천히 돌아간다.
+            # 정상 자세가 확인된 경우에만 개입을 끝내고 중립으로 복귀한다.
             self._cancel_behavior(now)
 
         with self._behavior_lock:
@@ -210,14 +233,24 @@ class ControlLoop(threading.Thread):
             started = self._behavior_return_started_at
 
         if returning:
-            if self._at_neutral():
-                if (started is None
-                        or now - started >= self._behavior_release_sec):
+            if self._at_neutral(now):
+                if self._behavior_settled_at is None:
+                    self._behavior_settled_at = now
+                if now - self._behavior_settled_at >= self._behavior_release_sec:
                     with self._behavior_lock:
                         self._behavior_returning = False
                         self._behavior_return_started_at = None
+                        self._behavior_settled_at = None
                         self._behavior_released = True
                     return dict(self.commanded), False
+            else:
+                self._behavior_settled_at = None
+            if (started is not None
+                    and now - started >= self.policy.return_seconds
+                    and not self._at_neutral(now)):
+                raise WriterError(
+                    "개입 후 중립 복귀 시간 초과: "
+                    "실측 위치가 중립에 도달하지 않았습니다")
             return dict(self.neutral), True
 
         with self._behavior_lock:
@@ -226,11 +259,6 @@ class ControlLoop(threading.Thread):
             # 한 번 중립 복귀를 끝낸 뒤에는 다음 tick에서 시작 기준 자세로
             # 되돌아가지 않고, 중립을 유지한 채 토크를 해제한다.
             return dict(self.neutral), False
-
-        if not person_visible:
-            # 사람이 없으면 기존 IdlePolicy가 중립 복귀와 토크 해제를
-            # 담당한다. 사람이 보이는 동안에는 현재 기준 자세를 유지한다.
-            return dict(self.neutral), state != STATE_IDLE
 
         # 평상시에는 사용자의 자세를 따라가지 않고 시작 시점의 기준 자세를
         # 유지한다. 토크를 풀면 세로 컬럼이 자중으로 무너질 수 있다.
@@ -248,6 +276,9 @@ class ControlLoop(threading.Thread):
             self.writer.prepare()
             self.commanded = self.writer.read_positions()
             self._rest_targets = dict(self.commanded)
+            self.measured_positions = dict(self.commanded)
+            self.measured_at = time.monotonic()
+            self._next_position_read = self.measured_at + self._position_read_period
 
         next_tick = time.monotonic()
         while not self.stop_event.is_set():
@@ -259,10 +290,19 @@ class ControlLoop(threading.Thread):
             posture_label = (classify(played).label
                              if person_visible else "unknown")
 
-            state, torque = self.policy.update(now, person_visible,
-                                               self.commanded, self.neutral)
-            self.state = state
+            if (self.writer is not None and self.motion_enabled
+                    and now >= self._next_position_read):
+                self.measured_positions = self.writer.read_positions()
+                self.measured_at = time.monotonic()
+                self._next_position_read = (
+                    self.measured_at + self._position_read_period)
+            current = (self.measured_positions
+                       if self.writer is not None and self.motion_enabled
+                       else self.commanded)
 
+            state, torque = self.policy.update(now, person_visible,
+                                               current, self.neutral)
+            self.state = state
             desired, torque_enabled = self._posture_trigger_output(
                 now, person_visible, state, posture_label)
 
@@ -323,6 +363,79 @@ def check_pose_within_limits(writer, mapper):
         raise BusError("현재 자세가 운용 범위를 벗어나 있습니다.\n"
                        + "\n".join(folded)
                        + "\n손으로 컬럼을 세운 뒤 다시 실행하세요.")
+
+
+def wait_for_measured_neutral(writer, mapper, neutral, timeout_sec,
+                              settle_sec=0.3, poll_sec=0.2):
+    """모든 관절이 실측 중립에 일정 시간 머물 때만 완료로 인정한다."""
+    deadline = time.monotonic() + timeout_sec
+    settled_at = None
+    while True:
+        positions = writer.read_positions()
+        now = time.monotonic()
+        at_neutral = all(
+            name in positions
+            and abs(mapper.position_delta(name, positions[name], target)) <= 15
+            for name, target in neutral.items())
+        if at_neutral:
+            if settled_at is None:
+                settled_at = now
+            if now - settled_at >= settle_sec:
+                return True
+        else:
+            settled_at = None
+        if now >= deadline:
+            return False
+        time.sleep(min(poll_sec, max(0.0, deadline - now)))
+
+
+def wait_for_control_neutral(control, mapper, neutral, timeout_sec,
+                             tolerance_ticks=15, settle_sec=0.3,
+                             poll_sec=0.05):
+    """ControlLoop의 측정값으로 시작 시 zero 도달을 확인한다.
+
+    버스는 ControlLoop 단독으로 사용해야 하므로 이 함수는 모터에 직접
+    접근하지 않는다. 목표 출력과 속도 제한은 기존 제어 루프가 담당한다.
+    """
+    deadline = time.monotonic() + timeout_sec
+    settled_at = None
+    while True:
+        if control.error is not None:
+            raise WriterError(f"시작 zero 초기화 중 제어 오류: {control.error}")
+        if control.safe_stop_reason:
+            raise WriterError(
+                f"시작 zero 초기화 중 안전 정지: {control.safe_stop_reason}")
+
+        positions = control.measured_positions
+        measured_at = control.measured_at
+        now = time.monotonic()
+        fresh = (positions is not None and measured_at is not None
+                 and now - measured_at <= control._position_max_age)
+        at_zero = fresh and all(
+            name in positions
+            and abs(mapper.position_delta(name, positions[name], target))
+            <= tolerance_ticks
+            for name, target in neutral.items())
+        if at_zero:
+            if settled_at is None:
+                settled_at = now
+            if now - settled_at >= settle_sec:
+                return True
+        else:
+            settled_at = None
+
+        if now >= deadline:
+            return False
+        time.sleep(min(poll_sec, max(0.0, deadline - now)))
+
+
+def return_to_neutral_and_release(writer, mapper, safety_gate, timeout_sec):
+    """정상 종료에만 사용한다. 실측 확인 전에는 토크를 해제하지 않는다."""
+    safe_neutral = safety_gate.clamp_targets(mapper.neutral_targets())
+    writer.write_targets(safe_neutral)
+    if not wait_for_measured_neutral(writer, mapper, safe_neutral, timeout_sec):
+        raise WriterError("제한시간 안에 실측 중립에 도달하지 않았습니다")
+    writer.set_torque(False)
 
 
 def print_status_line(now, status_mark, control, measured, played, fps):
@@ -459,7 +572,6 @@ def run(args):
             check_pose_within_limits(writer, mapper)
 
         control = ControlLoop(buffer, mapper, writer, config, safety_gate)
-        control.start()
 
         # 교정 판단 스레드 (--no-correction 이면 비활성)
         behavior = None
@@ -474,6 +586,24 @@ def run(args):
                           perception["height"]) as camera, \
                 PoseEstimator(args.model
                               or perception.get("model")) as estimator:
+            control.start()
+            startup = config.get("startup_initialization") or {}
+            if writer is not None and startup.get("enabled", True):
+                print("시작 초기화: zero position으로 이동하고 실측 확인 중...",
+                      flush=True)
+                initialized = wait_for_control_neutral(
+                    control, mapper, control.neutral,
+                    timeout_sec=float(startup.get("timeout_sec", 5.0)),
+                    tolerance_ticks=int(
+                        startup.get("tolerance_ticks", 15)),
+                    settle_sec=float(startup.get("settle_sec", 0.3)),
+                )
+                if not initialized:
+                    control.safe_stop("startup_zero_timeout")
+                    raise WriterError(
+                        "제한시간 안에 zero position에 도달하지 못했습니다. "
+                        "자세 반응을 시작하지 않습니다.")
+                print("시작 초기화 완료: zero position 실측 확인", flush=True)
             print("자세 반응 시작. 프리뷰 창에서 q 또는 Esc 로 종료합니다.")
             print("사용자별 캘리브레이션 없이 실행합니다. "
                   "카메라 위치를 고정하고 오검출을 확인하세요.")
@@ -651,30 +781,35 @@ def run(args):
         print("\n중단됨")
         return 0
     finally:
+        shutdown_failed = False
         if behavior is not None:
             behavior.stop()
             behavior.join(timeout=1.0)
         if control is not None:
             control.stop_event.set()
             control.join(timeout=2.0)
-        if writer is not None and (control is None or control.motion_enabled):
-            # 모터를 먼저 정리한 뒤 나머지 종료 작업을 수행한다.
-            try:
-                # 정리 경로도 운용 한계 검사를 건너뛰지 않는다.
-                safe_neutral = safety_gate.clamp_targets(mapper.neutral_targets())
-                writer.write_targets(safe_neutral)
-                time.sleep(1.0)
-                print("중립 복귀 후 토크 해제 완료")
-            except Exception as exc:
-                print(f"중립 복귀 중 오류: {exc}", file=sys.stderr)
-            finally:
-                # 중립 복귀 실패와 토크 해제를 묶지 않는다. 일부 관절에서
-                # 통신이 실패해도 writer가 가능한 관절을 계속 시도한다.
+        if (writer is not None and control is not None
+                and control.ident is not None and control.motion_enabled):
+            # 제어 스레드가 살아 있으면 동일 포트를 동시에 사용하지 않는다.
+            if control is not None and control.is_alive():
+                shutdown_failed = True
+                print("제어 스레드가 종료되지 않아 자동 정리를 건너뜁니다. "
+                      "로봇을 지지하고 모터 상태를 확인하세요.", file=sys.stderr)
+            elif control is not None and control.safe_stop_reason:
+                shutdown_failed = True
+                print("안전 정지 후에는 자동 복귀·토크 해제를 하지 않습니다. "
+                      "로봇을 지지하고 모터 상태를 확인하세요.", file=sys.stderr)
+            else:
                 try:
-                    writer.set_torque(False)
-                    print("토크 해제 완료")
+                    return_to_neutral_and_release(
+                        writer, mapper, safety_gate,
+                        config["motion"]["return_to_neutral_sec"])
+                    print("실측 중립 확인 후 토크 해제 완료")
                 except Exception as exc:
-                    print(f"토크 해제 중 오류: {exc}", file=sys.stderr)
+                    shutdown_failed = True
+                    print(f"자동 종료 중 오류: {exc}. 토크 상태가 불확실할 수 "
+                          "있습니다. 로봇을 지지하고 모터 상태를 확인하세요.",
+                          file=sys.stderr)
         close_at = time.monotonic()
         if response_tracker is not None:
             response_tracker.close(close_at)
@@ -684,6 +819,8 @@ def run(args):
             event_logger.close()
         stack.close()
         cv2.destroyAllWindows()
+        if shutdown_failed and sys.exc_info()[0] is None:
+            raise SystemExit(1)
 
 
 def main():

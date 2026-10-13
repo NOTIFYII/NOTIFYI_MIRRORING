@@ -2,7 +2,10 @@
 
 from types import SimpleNamespace
 
-from src.main import ControlLoop
+from src.main import (
+    ControlLoop, PostureAngles as MainPostureAngles,
+    return_to_neutral_and_release, wait_for_measured_neutral,
+)
 from src.perception.posture_features import PostureAngles
 
 
@@ -14,6 +17,9 @@ class FakeMapper:
 
     def to_targets(self, angles):
         return {"joint": 60}
+
+    def position_delta(self, name, current, target):
+        return target - current
 
 
 class GimbalMapper:
@@ -42,17 +48,21 @@ class FakeGate:
     def limit_targets(self, current, targets):
         return dict(targets)
 
+    def clamp_targets(self, targets):
+        return dict(targets)
+
 
 class WriterRecorder:
     def __init__(self):
         self.calls = []
+        self.position = 50
 
     def prepare(self):
         self.calls.append("prepare")
 
     def read_positions(self):
         self.calls.append("read_positions")
-        return {"joint": 50}
+        return {"joint": self.position}
 
     def set_torque(self, enabled):
         self.calls.append(("torque", enabled))
@@ -101,6 +111,92 @@ def test_posture_trigger_keeps_robot_neutral_without_event():
 
     assert loop.motion_enabled is True
     assert loop.last_targets == {"joint": 50}
+
+
+def test_missing_posture_type_is_available_to_main_loop():
+    sample = MainPostureAngles(1.0, 0.0, 0.0, 0.0)
+    assert sample.valid is False
+
+
+def test_person_loss_holds_last_active_pose_instead_of_returning_to_neutral():
+    loop = ControlLoop(
+        buffer=None, mapper=FakeMapper(), writer=None,
+        config={"echo": {"control_hz": 50}, "motion": {
+            "return_to_neutral_sec": 2.0,
+            "idle_release_sec": 3.0,
+            "person_lost_grace_sec": 0.5,
+        }}, safety_gate=FakeGate())
+    action = SimpleNamespace(
+        pose=PostureAngles(1.0, 30.0, 20.0, 1.0),
+        hold_until_good=True, duration_sec=0.0)
+    loop.submit_behavior(action)
+    loop.commanded = {"joint": 60}
+    start = loop._behavior_started_at
+    loop.policy.update(start, True, loop.commanded, loop.neutral)
+    state, _ = loop.policy.update(start + 0.1, False,
+                                  loop.commanded, loop.neutral)
+    desired, torque = loop._posture_trigger_output(
+        start + 0.1, False, state)
+    assert desired == {"joint": 60} and torque is True
+    state, _ = loop.policy.update(start + 0.7, False,
+                                  loop.commanded, loop.neutral)
+    desired, torque = loop._posture_trigger_output(
+        start + 0.7, False, state)
+    assert desired == {"joint": 60} and torque is True
+
+
+def test_measured_position_not_command_controls_neutral_release():
+    writer = WriterRecorder()
+    loop = ControlLoop(
+        buffer=None, mapper=FakeMapper(), writer=writer,
+        config={"echo": {"control_hz": 50}, "motion": {
+            "return_to_neutral_sec": 2.0,
+            "idle_release_sec": 3.0,
+        }}, safety_gate=FakeGate())
+    loop.commanded = {"joint": 50}
+    loop.measured_positions = {"joint": 70}
+    loop.measured_at = 10.0
+    assert loop._at_neutral(10.1) is False
+    loop.measured_positions = {"joint": 50}
+    assert loop._at_neutral(10.1) is True
+    assert loop._at_neutral(10.6) is False
+
+
+def test_shutdown_neutral_check_rejects_stalled_motor():
+    writer = WriterRecorder()
+    writer.position = 70
+    assert wait_for_measured_neutral(
+        writer, FakeMapper(), {"joint": 50},
+        timeout_sec=0, settle_sec=0) is False
+    writer.position = 50
+    assert wait_for_measured_neutral(
+        writer, FakeMapper(), {"joint": 50},
+        timeout_sec=0, settle_sec=0) is True
+
+
+def test_shutdown_does_not_release_stalled_motor():
+    import pytest
+
+    writer = WriterRecorder()
+    writer.position = 70
+    with pytest.raises(RuntimeError, match="실측 중립"):
+        return_to_neutral_and_release(
+            writer, FakeMapper(), FakeGate(), timeout_sec=0)
+    assert ("torque", False) not in writer.calls
+
+
+def test_shutdown_does_not_release_when_position_read_fails():
+    import pytest
+
+    class UnreadableWriter(WriterRecorder):
+        def read_positions(self):
+            raise RuntimeError("position unavailable")
+
+    writer = UnreadableWriter()
+    with pytest.raises(RuntimeError, match="position unavailable"):
+        return_to_neutral_and_release(
+            writer, FakeMapper(), FakeGate(), timeout_sec=0)
+    assert ("torque", False) not in writer.calls
 
 
 def test_posture_trigger_holds_rest_pose_without_event():

@@ -45,6 +45,14 @@ main()
     assert "voice" not in result.stdout and "mirror" not in result.stdout
 
 
+def test_body_range_accepts_confirmed_upright_position_with_small_positive_margin():
+    _, mapper, _ = mapping()
+    assert mapper.within_limits("body_pitch", 40)
+    assert mapper.within_limits("body_pitch", 46)
+    assert not mapper.within_limits("body_pitch", 47)
+    assert mapper.neutral_targets()["body_pitch"] == 1
+
+
 def test_head_range_accepts_confirmed_posture_and_rejects_outside_30_degrees():
     _, mapper, _ = mapping()
     assert mapper.within_limits("head_pitch", 1121)

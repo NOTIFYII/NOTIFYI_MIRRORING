@@ -6,8 +6,8 @@
 # - ID 3: 머리 앞뒤 기울임. 키보드 텔레옵에서 w가 의도한 방향.
 # - 이후 ID 3/4를 교환했으며, 현재 ID 3 위치 1022를 머리축 zero로 지정한다.
 #
-# ID 2는 zero에서 s 방향으로 최대 30도만 허용한다. 반대 방향은 아직
-# 검증되지 않아 0도로 제한한다. ID 3은 사용자가 정상 자세와 zero 기준
+# ID 2는 zero에서 s 방향으로 최대 30도만 허용한다. 현재 40 ticks가 정상
+# 자세로 확인되어 반대 방향은 +4도까지 허용한다. ID 3은 사용자가 정상 자세와 zero 기준
 # ±30도 이동 가능 범위를 확인했다. 소프트웨어 한계이며 자동 안전 검증은 아니다.
 
 structure:
@@ -27,7 +27,7 @@ joints:
     min_position: 0
     max_position: 4095
     relative_min_deg: -30
-    relative_max_deg: 0
+    relative_max_deg: 4        # 정상 실측 40 ticks(+3.4도)를 허용하는 소폭 여유
     wrap_position: true
 
   head_pitch:

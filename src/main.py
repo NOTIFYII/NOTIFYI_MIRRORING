@@ -728,6 +728,9 @@ def run(args):
                           "모터 상태를 확인하세요.", file=sys.stderr)
                 elif control.error is not None:
                     shutdown_failed = True
+                    if event_logger is not None:
+                        event_logger.record(
+                            "shutdown_hold_failed", reason=str(control.error))
         if writer is not None and control is not None and control.ident is not None:
             # 종료 시 실측 위치 hold는 제어 스레드가 수행한다.
             print("자동 zero 복귀·토크 해제를 생략했습니다. "

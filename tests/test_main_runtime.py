@@ -109,8 +109,9 @@ def test_lost_person_captures_measured_position_instead_of_pending_goal():
 
 
 @pytest.mark.parametrize("model_failure", [False, True])
+@pytest.mark.parametrize("shutdown_failure", [False, True])
 def test_run_exit_or_model_failure_never_homes_or_releases_torque(
-        monkeypatch, tmp_path, model_failure):
+        monkeypatch, tmp_path, model_failure, shutdown_failure):
     config = main.load_posture_config()
     config["experiment"]["log_dir"] = str(tmp_path)
     monkeypatch.setattr(main, "load_posture_config", lambda: config)
@@ -145,6 +146,8 @@ def test_run_exit_or_model_failure_never_homes_or_releases_torque(
             self.ident = 1
         def join(self, **_):
             assert self.ident is not None, "cannot join thread before it is started"
+            if shutdown_failure:
+                self.error = RuntimeError("hold not confirmed")
         def is_alive(self):
             return False
     monkeypatch.setattr(main, "ControlLoop", FakeControl)
@@ -153,6 +156,11 @@ def test_run_exit_or_model_failure_never_homes_or_releases_torque(
     if model_failure:
         with pytest.raises(RuntimeError, match="model load failed"):
             main.run(args)
+    elif shutdown_failure:
+        with pytest.raises(SystemExit) as exc:
+            main.run(args)
+        assert exc.value.code == 1
+        assert "shutdown_hold_failed" in next(tmp_path.glob("*.jsonl")).read_text()
     else:
         assert main.run(args) == 0
     assert motor_calls == []

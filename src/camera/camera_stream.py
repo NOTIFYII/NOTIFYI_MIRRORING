@@ -19,10 +19,10 @@ class CameraError(RuntimeError):
 
 
 class CameraStream:
-    """source 는 인덱스(0) 또는 장치 경로("/dev/video2") 둘 다 받는다.
+    """source 는 인덱스(0) 또는 /dev/videoN 형식을 받는다.
 
-    USB 포트나 부팅 순서에 따라 인덱스는 흔들리지만 경로는 안정적이므로,
-    장치가 여러 개일 때는 경로로 지정하는 편이 안전하다.
+    OpenCV 의 Linux V4L2 백엔드는 장치 경로 문자열 대신 정수 인덱스를
+    요구하므로 /dev/videoN 을 N 으로 변환한다.
     """
 
     def __init__(self, source=0, width=640, height=480):
@@ -35,6 +35,9 @@ class CameraStream:
         source = self.source
         if isinstance(source, str) and source.isdigit():
             source = int(source)
+        elif (isinstance(source, str) and source.startswith("/dev/video")
+              and source.removeprefix("/dev/video").isdigit()):
+            source = int(source.removeprefix("/dev/video"))
         self._capture = cv2.VideoCapture(source, _DEFAULT_BACKEND)
         if not self._capture.isOpened():
             self._capture.release()

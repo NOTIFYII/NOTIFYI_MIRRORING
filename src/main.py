@@ -30,6 +30,7 @@ from src.perception.posture_features import (  # noqa: E402
     MedianFilter, PostureAngles, extract_angles, smooth,
 )
 from src.posture.pose_buffer import PoseBuffer  # noqa: E402
+from src.posture.recovery import RecoveryDetector  # noqa: E402
 from src.posture.classifier import classify  # noqa: E402
 from src.robot.dynamixel_driver import (  # noqa: E402
     BusError, PROJECT_ROOT, describe_hardware_error, install_signal_guards,
@@ -79,6 +80,9 @@ class ControlLoop(threading.Thread):
         self._hardware_initialized = False
         self._holding_position = False
         self._output_is_hold = False
+        recovery_config = config.get("recovery") or {}
+        self._fast_recovery = bool(recovery_config.get("enabled", False))
+        self._recovery_max_age = float(recovery_config.get("max_age_sec", 1.0))
         self.writer = writer
         self.recovery_latency = recovery_latency
         self.period = 1.0 / echo["control_hz"]
@@ -138,6 +142,19 @@ class ControlLoop(threading.Thread):
         result[head] = self.mapper.clamp_target(
             head, self.neutral[head] + self._camera_tick_ratio * delta)
         return result
+
+    def _recovery_label(self, sample, now, label):
+        if not self._fast_recovery:
+            return label
+        confirmation = getattr(self.buffer, "latest_recovery", lambda: None)()
+        with self._behavior_lock:
+            started = self._behavior_started_at
+        if (confirmation is not None and sample is not None and confirmation.confirmed
+                and confirmation.timestamp == sample.timestamp
+                and 0 <= now - confirmation.timestamp <= self._recovery_max_age
+                and (started is None or confirmation.first_capture_at >= started)):
+            return "good"
+        return "unknown" if label == "good" else label
 
     def _targets_for_pose(self, pose):
         """고정 포즈를 만들고 탑재 카메라 관절은 역회전으로 보정한다."""
@@ -374,6 +391,8 @@ class ControlLoop(threading.Thread):
                 and 0 <= now - played.timestamp <= self._max_observation_age)
             posture_label = (classify(played).label
                              if person_visible else "unknown")
+            if person_visible:
+                posture_label = self._recovery_label(played, now, posture_label)
             if self._was_person_visible and not person_visible:
                 self._capture_hold_position()
             self._was_person_visible = person_visible
@@ -551,6 +570,8 @@ def run(args):
         sys.exit(f"관절 매핑 설정 오류: {exc}")
 
     buffer = PoseBuffer()
+    recovery_config = config.get("recovery") or {}
+    recovery_detector = RecoveryDetector(**{key: value for key, value in recovery_config.items() if key != "enabled"})
     median = MedianFilter(angles_config["median_window"])
     experiment = config.get("experiment") or {}
     condition = args.condition or experiment.get("condition", "posture_trigger")
@@ -582,6 +603,8 @@ def run(args):
     event_logger = EventLogger(log_dir, condition=condition)
     performance = PerformanceWindow((config.get("telemetry") or {}).get("performance_interval_sec", 5.0))
     recovery_latency = RecoveryLatency()
+    event_logger.record("recovery_policy", method="raw_two_frame" if recovery_config.get("enabled", False) else "filtered",
+                        settings=recovery_config, bad_sustain_sec=config["correction"]["sustain_seconds"])
     response_tracker = ResponseTracker(
         event_logger,
         response_timeout_sec=float(experiment.get("response_timeout_sec", 15.0)),
@@ -650,6 +673,7 @@ def run(args):
                         print(f"[PERF] {report['processed_fps']} fps | 추론 {report['inference_ms']}ms | 프레임 지연 {report['frame_age_ms']}ms", flush=True)
 
                 measured = None
+                raw_measured = None
                 if landmarks and world:
                     measured = extract_angles(
                         world, landmarks, captured_at,
@@ -664,23 +688,34 @@ def run(args):
                     measured = filter_observation(
                         measured, previous, median, angles_config)
                     previous = measured
+                    filtered_at = time.monotonic()
+                    confirmation = recovery_detector.update(raw_measured, filtered_at)
                     recovery_latency.observe(captured_at, finished_at, time.monotonic(),
                                              classify(raw_measured).label, classify(measured).label)
-                    buffer.push(measured)
+                    if recovery_config.get("enabled", False):
+                        recovery_latency.recovery_confirmed(confirmation, filtered_at)
+                    buffer.push(measured, confirmation)
                 else:
                     previous = None
                     median.reset()
                     recovery_latency.observe(captured_at, finished_at, time.monotonic(), "unknown", "unknown")
-                    buffer.push(PostureAngles(captured_at, 0.0, 0.0, 0.0))
+                    missing = PostureAngles(captured_at, 0.0, 0.0, 0.0)
+                    confirmation = recovery_detector.update(missing, time.monotonic())
+                    buffer.push(missing, confirmation)
 
                 # 교정 판단 스레드에는 인식 실패도 unknown으로 전달한다.
                 # 실패 프레임을 생략하면 이전 나쁜 자세가 보이지 않은
                 # 시간까지 지속된 것으로 오인할 수 있다.
                 observed = measured or PostureAngles(captured_at, 0.0, 0.0, 0.0)
+                recovery_observed = (raw_measured if recovery_config.get("enabled", False)
+                                     and confirmation.confirmed else observed)
+                if (recovery_config.get("enabled", False) and not confirmation.confirmed
+                        and classify(observed).label == "good"):
+                    recovery_observed = PostureAngles(captured_at, 0.0, 0.0, 0.0)
                 if behavior is not None:
-                    behavior.update_posture(observed)
+                    behavior.update_posture(recovery_observed)
                 if response_tracker is not None:
-                    response_tracker.update(now, classify(observed).label)
+                    response_tracker.update(time.monotonic(), classify(recovery_observed).label)
 
                 # 교정 이벤트 소비
                 if behavior is not None:
@@ -688,7 +723,7 @@ def run(args):
                     if event:
                         action = None
                         event_now = time.monotonic()
-                        current_posture = classify(observed)
+                        current_posture = classify(recovery_observed)
                         age = event_now - event.timestamp
                         event_is_current = (
                             observed.valid

@@ -15,6 +15,8 @@ class RecoveryLatency:
         self._trial = None
         self._motion_trial = None
         self._perception = None
+        self._fast_candidate = None
+        self._fast_bad_seen = False
 
     def start(self, now):
         with self._lock:
@@ -31,6 +33,11 @@ class RecoveryLatency:
 
     def observe(self, captured_at, inferred_at, filtered_at, raw_label, filtered_label):
         with self._lock:
+            if raw_label != "good":
+                self._fast_candidate = None
+                self._fast_bad_seen = raw_label != "unknown"
+            elif self._fast_bad_seen and self._fast_candidate is None:
+                self._fast_candidate = {"capture": captured_at, "inference": inferred_at, "logged": False}
             if raw_label == "unknown":
                 self._perception = None
             elif raw_label != "good":
@@ -51,13 +58,30 @@ class RecoveryLatency:
                 trial.pop("filtered", None)
                 trial.pop("capture", None)
                 trial.pop("inference", None)
-            if raw_label != "good" and "filtered" not in trial:
+            if raw_label != "good":
                 trial.pop("capture", None)
                 trial.pop("inference", None)
+                trial.pop("confirmed", None)
             elif raw_label == "good" and "capture" not in trial:
                 trial.update(capture=captured_at, inference=inferred_at)
             if filtered_label == "good" and "filtered" not in trial:
                 trial["filtered"] = filtered_at
+
+    def recovery_confirmed(self, confirmation, now):
+        if not confirmation.confirmed:
+            return
+        with self._lock:
+            candidate = self._fast_candidate
+            if candidate is not None and not candidate["logged"]:
+                self._emit("fast_recovery_latency", now,
+                           capture_to_inference_ms=milliseconds(candidate["inference"], candidate["capture"]),
+                           inference_to_recovery_ms=milliseconds(now, candidate["inference"]),
+                           capture_to_recovery_ms=milliseconds(now, candidate["capture"]),
+                           recovery_method="raw_two_frame")
+                candidate["logged"] = True
+            trial = self._trial
+            if trial is not None and "request" not in trial and confirmation.first_capture_at >= trial["started"]:
+                trial["confirmed"] = now
 
     def return_requested(self, now, baseline=None, neutral=None):
         with self._lock:
@@ -78,6 +102,9 @@ class RecoveryLatency:
                        filtered_good_to_request_ms=milliseconds(t.get("request"), t.get("filtered")),
                        request_to_command_ms=milliseconds(now, t.get("request")),
                        capture_to_command_ms=milliseconds(now, t.get("capture")),
+                       recovery_method="raw_two_frame" if "confirmed" in t else "filtered",
+                       inference_to_recovery_ms=milliseconds(t.get("confirmed", t.get("filtered")), t.get("inference")),
+                       recovery_to_request_ms=milliseconds(t.get("request"), t.get("confirmed", t.get("filtered"))),
                        physical_motion_verified=False)
             t["command"] = now
             self._motion_trial = t
@@ -117,5 +144,5 @@ class RecoveryLatency:
             except queue.Empty:
                 return
             logger.record(event, timestamp=now, **fields)
-            if print_summary and event in ("return_command_sent", "return_motion_observed", "perception_recovery_latency"):
+            if print_summary and event in ("return_command_sent", "return_motion_observed", "perception_recovery_latency", "fast_recovery_latency"):
                 print(f"[LATENCY] {event} | {fields}", flush=True)

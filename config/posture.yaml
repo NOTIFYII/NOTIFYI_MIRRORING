@@ -59,7 +59,15 @@ motion:
   # return_seconds=2.0, release_seconds=1.0 을 쓴다. 실환경에서는 위 값이
   # 적용된다. 테스트가 config 를 직접 읽지 않는 것은 의도적이다.
 
-# 교정 판단 정책. BehaviorManager 가 이 값을 읽는다.
+# 정상 회복만 별도 확인한다. 나쁜 자세의 3초 조건은 아래 correction에서 유지.
+recovery:
+  enabled: true
+  min_frames: 2
+  min_span_sec: 0.3
+  max_gap_sec: 1.0
+  max_age_sec: 1.0
+  min_confidence: 0.5
+
 correction:
   sustain_seconds: 3.0      # 나쁜 자세가 이만큼 지속돼야 교정 트리거
   max_corrections_per_run: null # 정상 복귀 후 나쁜 자세 에피소드마다 재호출

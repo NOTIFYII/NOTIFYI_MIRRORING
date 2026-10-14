@@ -47,6 +47,7 @@ from src.safety.health import HealthMonitor, SafeStopRequested  # noqa: E402
 from src.telemetry.event_log import EventLogger  # noqa: E402
 from src.telemetry.response_tracker import ResponseTracker  # noqa: E402
 from src.telemetry.performance import PerformanceWindow  # noqa: E402
+from src.telemetry.recovery_latency import RecoveryLatency  # noqa: E402
 from src.runtime.instance import AlreadyRunning, instance_lock  # noqa: E402
 
 POSTURE_CONFIG = PROJECT_ROOT / "config" / "posture.yaml"
@@ -68,7 +69,7 @@ def filter_observation(sample, previous, median, angles_config):
 class ControlLoop(threading.Thread):
     """고정 주기로 중립 또는 고정 개입 포즈를 모터에 쓰는 스레드."""
 
-    def __init__(self, buffer, mapper, writer, config, safety_gate=None):
+    def __init__(self, buffer, mapper, writer, config, safety_gate=None, recovery_latency=None):
         super().__init__(name="control", daemon=True)
         echo = config["echo"]
         motion = config["motion"]
@@ -79,6 +80,7 @@ class ControlLoop(threading.Thread):
         self._holding_position = False
         self._output_is_hold = False
         self.writer = writer
+        self.recovery_latency = recovery_latency
         self.period = 1.0 / echo["control_hz"]
         self.safety_gate = safety_gate or SafetyGate(mapper, config)
         distance_fn = getattr(self.mapper, "position_delta", None)
@@ -178,6 +180,8 @@ class ControlLoop(threading.Thread):
         with self._behavior_lock:
             self._behavior_action = action
             self._behavior_started_at = time.monotonic()
+            if self.recovery_latency is not None:
+                self.recovery_latency.start(self._behavior_started_at)
             self._behavior_returning = False
             self._behavior_return_started_at = None
             self._behavior_settled_at = None
@@ -223,6 +227,10 @@ class ControlLoop(threading.Thread):
                 self._behavior_returning = True
                 self._behavior_return_started_at = now
                 self._behavior_settled_at = None
+                if self.recovery_latency is not None:
+                    baseline = (self.measured_positions if self.measured_at is not None
+                                and now - self.measured_at <= self._position_max_age else None)
+                    self.recovery_latency.return_requested(time.monotonic(), baseline, self.neutral)
 
     def _at_neutral(self, now=None):
         if self.writer is not None and self.motion_enabled:
@@ -374,6 +382,8 @@ class ControlLoop(threading.Thread):
                     and now >= self._next_position_read):
                 self.measured_positions = self.writer.read_positions()
                 self.measured_at = time.monotonic()
+                if self.recovery_latency is not None:
+                    self.recovery_latency.motion_observed(self.measured_at, self.measured_positions)
                 self._next_position_read = (
                     self.measured_at + self._position_read_period)
             current = (self.measured_positions
@@ -400,6 +410,7 @@ class ControlLoop(threading.Thread):
                     self.safety_gate, "validate_single_turn_transition", None)
                 if validate_transition is not None:
                     validate_transition(self.commanded, limited)
+            previous_command = dict(self.commanded)
             self.commanded = limited
             self.last_targets = limited
 
@@ -410,6 +421,9 @@ class ControlLoop(threading.Thread):
                     # 토크 ON 전에 현재 목표를 써 저장된 이전 Goal로 튀지 않게 한다.
                     if not (self._output_is_hold and self._holding_position):
                         self.writer.write_targets(limited)
+                        if (self.recovery_latency is not None and self._behavior_returning
+                                and limited != previous_command):
+                            self.recovery_latency.command_sent(time.monotonic())
                     self.writer.set_torque(True)
 
             next_tick += self.period
@@ -567,6 +581,7 @@ def run(args):
         log_dir = PROJECT_ROOT / log_dir
     event_logger = EventLogger(log_dir, condition=condition)
     performance = PerformanceWindow((config.get("telemetry") or {}).get("performance_interval_sec", 5.0))
+    recovery_latency = RecoveryLatency()
     response_tracker = ResponseTracker(
         event_logger,
         response_timeout_sec=float(experiment.get("response_timeout_sec", 15.0)),
@@ -578,7 +593,7 @@ def run(args):
             writer = build_writer((packet, port), mapper, config)
             check_pose_within_limits(writer, mapper)
 
-        control = ControlLoop(buffer, mapper, writer, config, safety_gate)
+        control = ControlLoop(buffer, mapper, writer, config, safety_gate, recovery_latency)
 
         # 교정 판단 스레드 (--no-correction 이면 비활성)
         behavior = None
@@ -643,15 +658,19 @@ def run(args):
                         perception["invert_neck"])
 
                 if measured is not None:
+                    raw_measured = measured
                     # 순서가 중요하다. 중앙값으로 튀는 값을 먼저 버리고,
                     # 운용 범위 안으로 자르고 부드럽게 한다.
                     measured = filter_observation(
                         measured, previous, median, angles_config)
                     previous = measured
+                    recovery_latency.observe(captured_at, finished_at, time.monotonic(),
+                                             classify(raw_measured).label, classify(measured).label)
                     buffer.push(measured)
                 else:
                     previous = None
                     median.reset()
+                    recovery_latency.observe(captured_at, finished_at, time.monotonic(), "unknown", "unknown")
                     buffer.push(PostureAngles(captured_at, 0.0, 0.0, 0.0))
 
                 # 교정 판단 스레드에는 인식 실패도 unknown으로 전달한다.
@@ -730,6 +749,7 @@ def run(args):
                               f"(행동: {action_name}, 강도: {event.urgency})")
 
                 frames += 1
+                recovery_latency.flush(event_logger, print_summary=args.no_preview)
                 if now - fps_mark >= 1.0:
                     fps = frames / (now - fps_mark)
                     frames = 0
@@ -794,6 +814,8 @@ def run(args):
         if response_tracker is not None:
             response_tracker.close()
         if event_logger is not None:
+            recovery_latency.close(time.monotonic())
+            recovery_latency.flush(event_logger, print_summary=args.no_preview)
             event_logger.close()
         # 제어 스레드가 아직 버스를 쓰고 있으면 메인에서 포트를 닫지 않는다.
         if not (control is not None and control.ident is not None and control.is_alive()):

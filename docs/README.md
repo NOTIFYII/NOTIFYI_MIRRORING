@@ -3,6 +3,7 @@
 
 - [실행 방법](QUICKSTART.md): Raspberry Pi 3 B+, Python 3.12, SSH 실행
 - [반응 지연·자동 실행](PERFORMANCE_AND_AUTOSTART.md): minwook 성능 로그, 실행 아이콘, 인식 전용 자동 시작
+- [회복·복귀 지연 측정](RECOVERY_LATENCY.md): 관측·필터·복귀 지령·엔코더 관측을 구분하는 로그
 - [현재 구조와 폴더](ARCHITECTURE.md): 활성 실행 경로와 보관 코드 경계
 - [설정 기준](CONFIGURATION.md): main YAML의 ID 2·3, zero, 상대 범위
 - [몸통 좌표 경계 진단](MOTOR_COORDINATE_DIAGNOSIS.md): 읽기 전용 설정 확인과 보정 전 점검

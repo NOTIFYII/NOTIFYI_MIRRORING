@@ -19,9 +19,8 @@ perception:
   height: 480
   latest_frame_only: true   # 추론 중 쌓인 영상 대신 최신 프레임 하나만 처리
   min_visibility: 0.5     # 이 아래면 사람을 못 본 것으로 친다
-  # 정면 카메라를 가정한다. 시상면 각은 world landmark 의 z(깊이)로 잡는데,
-  # 단일 RGB 카메라에서 z 는 가장 노이즈가 큰 축이다. 흔들리면 카메라를
-  # 측면에 두는 편이 훨씬 안정적이다.
+  # 현재 지표는 2D 머리-어깨 간격/어깨 너비 비율이다 (world z 사용 안 함).
+  # 측면·20~30cm 촬영 정확도는 미검증. 측면이면 더 안정적이라고 가정하지 않는다.
   invert_torso: false     # 앞으로 숙일 때 각이 음수면 true
   invert_neck: false
 
@@ -43,6 +42,13 @@ camera_gimbal:
   joint: head_pitch
   body_joint: body_pitch
   tick_ratio: 1.0            # 몸통 -341 ticks → 머리 -341 ticks (물리적으로 반대 회전)
+
+# 실측 위치와 지령이 안정된 후 촬영된 프레임만 자세 평가에 사용한다.
+motion_observation:
+  settle_sec: 0.5
+  target_tolerance_ticks: 15
+  movement_tolerance_ticks: 3
+  max_measurement_age_sec: 0.5
 
 # 몸통 입력을 body_pitch에 보내고, 목 입력은 role: neck 관절에 보낸다.
 distribution:

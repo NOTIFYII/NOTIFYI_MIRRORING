@@ -64,6 +64,34 @@ def build_lateral_tilt():
 
 
 class TestExtractAngles2D:
+    def test_missing_head_is_not_a_posture_measurement(self):
+        points = build_upright()
+        for index in (LEFT_EAR, RIGHT_EAR, NOSE):
+            points[index].visibility = 0.1
+        assert extract_angles(None, points, 1) is None
+        from src.perception.posture_features import person_confidence
+        assert person_confidence(points) == 1
+
+    def test_offscreen_nose_is_not_valid_fallback(self):
+        points = build_upright()
+        points[LEFT_EAR].visibility = points[RIGHT_EAR].visibility = 0.1
+        points[NOSE].y = -0.1
+        assert extract_angles(None, points, 1) is None
+
+    def test_presence_only_sample_cannot_be_good(self):
+        from src.posture.classifier import classify
+        sample = PostureAngles(1, 0, 0, 1, posture_evaluable=False)
+        assert sample.valid
+        assert classify(sample).label == "unknown"
+
+    def test_side_candidate_requires_only_one_visible_pair_and_never_controls(self):
+        from src.perception.side_observation import side_candidate
+        points = build_upright()
+        points[RIGHT_EAR].visibility = points[RIGHT_SHOULDER].visibility = 0.1
+        result = side_candidate(points, 640, 480)
+        assert result["available"] and result["side"] == "left"
+        assert result["control_enabled"] is False
+
     def test_upright_gives_small_angle(self):
         points = build_upright()
         angles = extract_angles(None, points, timestamp=1.0)

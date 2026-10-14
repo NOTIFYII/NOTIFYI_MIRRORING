@@ -50,6 +50,7 @@ class PostureAngles:
     torso_roll_deg: float = 0.0
     neck_yaw_deg: float = 0.0
     neck_roll_deg: float = 0.0
+    posture_evaluable: bool = True
 
     @property
     def valid(self):
@@ -72,6 +73,21 @@ def min_visibility(landmarks, indices):
     return min(values) if values else 0.0
 
 
+def point_visible(point, threshold):
+    return (all(math.isfinite(v) for v in (point.x, point.y, point.visibility))
+            and 0 <= point.x <= 1 and 0 <= point.y <= 1
+            and point.visibility >= threshold)
+
+
+def person_confidence(landmarks, threshold=0.5):
+    """Presence is independent of whether a head posture can be evaluated."""
+    if not landmarks:
+        return 0.0
+    visible = [landmarks[i].visibility for i in REQUIRED
+               if point_visible(landmarks[i], threshold)]
+    return max(visible, default=0.0)
+
+
 def extract_angles(world, landmarks, timestamp, min_visibility_threshold=0.5,
                    invert_torso=False, invert_neck=False):
     """이미지 좌표에서 자세 각도를 추정한다.
@@ -86,7 +102,7 @@ def extract_angles(world, landmarks, timestamp, min_visibility_threshold=0.5,
         return None
 
     confidence = min_visibility(landmarks, REQUIRED)
-    if confidence < min_visibility_threshold:
+    if not all(point_visible(landmarks[i], min_visibility_threshold) for i in REQUIRED):
         return None
 
     # --- 2D 좌표 추출 ---
@@ -97,10 +113,15 @@ def extract_angles(world, landmarks, timestamp, min_visibility_threshold=0.5,
 
     # 머리: 귀가 보이면 귀 중점, 아니면 코
     ear_vis = min_visibility(landmarks, (LEFT_EAR, RIGHT_EAR))
-    if ear_vis >= min_visibility_threshold:
+    if all(point_visible(landmarks[i], min_visibility_threshold)
+           for i in (LEFT_EAR, RIGHT_EAR)):
         head_y = _mid_y(landmarks, LEFT_EAR, RIGHT_EAR)
+        confidence = min(confidence, ear_vis)
     else:
+        if not point_visible(landmarks[NOSE], min_visibility_threshold):
+            return None
         head_y = landmarks[NOSE].y
+        confidence = min(confidence, landmarks[NOSE].visibility)
 
     # --- 전방 굽힘 proxy ---
     # 단안 정면 카메라는 실제 깊이 방향 각도를 볼 수 없다. 어깨 너비를

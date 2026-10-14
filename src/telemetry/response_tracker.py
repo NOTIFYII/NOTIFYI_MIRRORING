@@ -25,6 +25,9 @@ class ResponseTracker:
             "behavior": behavior,
             "responded_at": None,
             "good_since": None,
+            "unobserved_since": None,
+            "unobserved_sec": 0.0,
+            "observation_interrupted": False,
         }
         self.logger.record(
             "intervention",
@@ -33,7 +36,7 @@ class ResponseTracker:
             behavior=behavior,
         )
 
-    def update(self, now, posture_label):
+    def update(self, now, posture_label, observation_reason="ready"):
         """현재 분류 결과로 반응과 유지시간을 갱신한다."""
         active = self._active
         if active is None:
@@ -42,9 +45,29 @@ class ResponseTracker:
         # 카메라가 사람을 놓친 구간은 정상 회복이나 재악화로 판단하지
         # 않는다. 관측이 다시 가능해질 때까지 열린 개입을 유지한다.
         if posture_label == "unknown":
+            active["observation_interrupted"] = True
+            if active["unobserved_since"] is None:
+                active["unobserved_since"] = now
+                self.logger.record("response_observation_gap", timestamp=now,
+                                   reason=observation_reason)
+            if active["responded_at"] is not None:
+                # Do not count an unobserved interval as maintained good posture.
+                self.logger.record("posture_maintenance", timestamp=now,
+                                   good_duration_sec=round(now - active["good_since"], 4),
+                                   observation_complete=False, reason=observation_reason)
+                self._active = None
+                return
             if (active["responded_at"] is None
                     and now - active["started_at"] >= self.response_timeout_sec):
                 self._finish_ignored(now, "timeout")
+            return
+
+        if active["unobserved_since"] is not None:
+            active["unobserved_sec"] += now - active["unobserved_since"]
+            active["unobserved_since"] = None
+        if (active["responded_at"] is None
+                and now - active["started_at"] >= self.response_timeout_sec):
+            self._finish_ignored(now, "timeout")
             return
 
         if active["responded_at"] is None:
@@ -55,6 +78,9 @@ class ResponseTracker:
                     "posture_corrected",
                     timestamp=now,
                     response_time_sec=round(now - active["started_at"], 4),
+                    observation_complete=not active["observation_interrupted"],
+                    unobserved_sec=round(active["unobserved_sec"], 4),
+                    timing_basis="first_confirmed_observation_not_exact_human_recovery",
                 )
             elif now - active["started_at"] >= self.response_timeout_sec:
                 self._finish_ignored(now, "timeout")
@@ -93,6 +119,7 @@ class ResponseTracker:
             posture=active["posture_label"],
             behavior=active["behavior"],
             reason=reason,
-            observation_complete=reason != "session_finished",
+            observation_complete=(reason != "session_finished"
+                                  and not active["observation_interrupted"]),
         )
         self._active = None

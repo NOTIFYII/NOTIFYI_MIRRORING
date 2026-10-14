@@ -46,7 +46,7 @@ def classify(angles: PostureAngles) -> PostureState:
 
     양수가 앞으로 숙인 방향이므로, 임계값보다 크면 나쁜 자세.
     """
-    if not angles.valid:
+    if not angles.valid or not angles.posture_evaluable:
         # 사람을 놓친 프레임을 정상 자세로 취급하면 나쁜 자세 타이머가
         # 잘못 초기화되거나, 반대로 관측되지 않은 시간이 지속시간에
         # 포함될 수 있다. 정상/나쁨과 별개의 관측 불가 상태로 전파한다.

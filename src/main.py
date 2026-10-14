@@ -27,8 +27,10 @@ from src.perception.pose_estimator import (  # noqa: E402
     PoseEstimator, draw_angle_bar, draw_overlay, draw_skeleton,
 )
 from src.perception.posture_features import (  # noqa: E402
-    MedianFilter, PostureAngles, extract_angles, smooth,
+    MedianFilter, PostureAngles, extract_angles, smooth, person_confidence,
 )
+from src.perception.motion_observation_gate import MotionObservationGate
+from src.perception.side_observation import side_candidate
 from src.posture.pose_buffer import PoseBuffer  # noqa: E402
 from src.posture.recovery import RecoveryDetector  # noqa: E402
 from src.posture.classifier import classify  # noqa: E402
@@ -90,6 +92,9 @@ class ControlLoop(threading.Thread):
         distance_fn = getattr(self.mapper, "position_delta", None)
         if distance_fn is None:
             distance_fn = lambda name, current, target: target - current
+        self.observation_gate = (MotionObservationGate(
+            distance_fn, **config.get("motion_observation", {}))
+            if writer is not None else None)
         self.policy = IdlePolicy(
             motion["return_to_neutral_sec"], motion["idle_release_sec"],
             grace_seconds=motion.get("person_lost_grace_sec", 0.5),
@@ -146,6 +151,9 @@ class ControlLoop(threading.Thread):
         return result
 
     def _recovery_label(self, sample, now, label):
+        if (self.observation_gate is not None and sample is not None
+                and self.observation_gate.reason(sample.timestamp, now) != "ready"):
+            return "unknown"
         if not self._fast_recovery:
             return label
         confirmation = getattr(self.buffer, "latest_recovery", lambda: None)()
@@ -436,6 +444,10 @@ class ControlLoop(threading.Thread):
                 if validate_transition is not None:
                     validate_transition(self.commanded, limited)
             previous_command = dict(self.commanded)
+            if self.observation_gate is not None:
+                # Mark movement before the hardware write, not after inference.
+                self.observation_gate.update(time.monotonic(), limited,
+                                             self.measured_positions, self.measured_at)
             self.commanded = limited
             self.last_targets = limited
 
@@ -617,6 +629,9 @@ def run(args):
     )
     stack = ExitStack()
     web_preview = None
+    observation_reason = None
+    observation_since = None
+    side_log_at = 0.0
     try:
         if getattr(args, "web_preview", False):
             from src.camera.web_preview import WebPreview
@@ -698,6 +713,25 @@ def run(args):
                         perception["invert_torso"],
                         perception["invert_neck"])
 
+                gate = getattr(control, "observation_gate", None)
+                diagnostic_raw = measured  # display/log only when evaluation is excluded
+                reason = gate.reason(captured_at, time.monotonic()) if gate else "ready"
+                if reason == "ready" and measured is None:
+                    reason = "landmarks_unavailable"
+                if reason != observation_reason:
+                    event_logger.record("observation_quality", timestamp=time.monotonic(),
+                                        captured_at=captured_at, reason=reason,
+                                        previous_reason=observation_reason,
+                                        previous_sampled_duration_sec=(
+                                            round(finished_at - observation_since, 4)
+                                            if observation_since is not None else None),
+                                        evaluation_allowed=reason == "ready")
+                    print(f"[OBSERVATION] {reason}", flush=True)
+                    observation_reason = reason
+                    observation_since = finished_at
+                if reason != "ready":
+                    measured = None
+
                 if measured is not None:
                     raw_measured = measured
                     # 순서가 중요하다. 중앙값으로 튀는 값을 먼저 버리고,
@@ -718,7 +752,10 @@ def run(args):
                     recovery_latency.observe(captured_at, finished_at, time.monotonic(), "unknown", "unknown")
                     missing = PostureAngles(captured_at, 0.0, 0.0, 0.0)
                     confirmation = recovery_detector.update(missing, time.monotonic())
-                    buffer.push(missing, confirmation)
+                    # Keep person presence for safety without allowing posture decisions.
+                    presence = person_confidence(landmarks, perception["min_visibility"])
+                    buffer.push(PostureAngles(captured_at, 0.0, 0.0, presence,
+                                              posture_evaluable=False), confirmation)
 
                 # 교정 판단 스레드에는 인식 실패도 unknown으로 전달한다.
                 # 실패 프레임을 생략하면 이전 나쁜 자세가 보이지 않은
@@ -729,10 +766,22 @@ def run(args):
                 if (recovery_config.get("enabled", False) and not confirmation.confirmed
                         and classify(observed).label == "good"):
                     recovery_observed = PostureAngles(captured_at, 0.0, 0.0, 0.0)
+                if finished_at - side_log_at >= 0.5:
+                    event_logger.record("side_view_candidate", captured_at=captured_at,
+                                        evaluation_reason=reason,
+                                        raw_label=classify(diagnostic_raw).label if diagnostic_raw else "unknown",
+                                        filtered_label=classify(observed).label,
+                                        decision_label=classify(recovery_observed).label,
+                                        recovery_confirmed=confirmation.confirmed,
+                                        **side_candidate(landmarks, frame.shape[1], frame.shape[0],
+                                                         perception["min_visibility"]))
+                    side_log_at = finished_at
                 if behavior is not None:
                     behavior.update_posture(recovery_observed)
                 if response_tracker is not None:
-                    response_tracker.update(time.monotonic(), classify(recovery_observed).label)
+                    response_tracker.update(time.monotonic(), classify(recovery_observed).label,
+                                            observation_reason=(reason if reason != "ready"
+                                                                else "waiting_recovery_confirmation"))
 
                 # 교정 이벤트 소비
                 if behavior is not None:
@@ -813,6 +862,12 @@ def run(args):
                     preview_frame = frame.copy()
                     draw_preview(preview_frame, control, measured, played, echo,
                                  angles_config, landmarks, writer, fps, condition)
+                    cv2.putText(preview_frame, f"evaluation: {reason}", (10, 140),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 200, 255), 1)
+                    raw_label = classify(diagnostic_raw).label if diagnostic_raw else "unknown"
+                    cv2.putText(preview_frame,
+                                f"raw: {raw_label} | decision: {classify(recovery_observed).label} | recovery: {confirmation.confirmed}",
+                                (10, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 255), 1)
                     web_preview.submit(preview_frame)
 
                 if args.no_preview:

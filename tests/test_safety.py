@@ -299,3 +299,20 @@ class TestHealthMonitor:
     def test_control_timeout_requests_safe_stop(self):
         self.monitor.record_frame(1.0)
         assert "control_timeout" in self.monitor.check(2.1, 0.9)
+
+    def test_control_preparation_has_separate_bounded_deadline(self):
+        self.monitor.start(30.0)  # 모델 준비 이전 시간은 포함하지 않는다.
+        self.monitor.record_frame(32.0)
+        assert self.monitor.check(32.0, None, "hardware_prepare") is None
+        self.monitor.record_frame(35.1)
+        reason = self.monitor.check(35.1, None, "initial_position_read")
+        assert "control_startup_timeout" in reason
+        assert "initial_position_read" in reason
+
+    def test_first_heartbeat_switches_to_normal_deadline(self):
+        self.monitor.start(30.0)
+        self.monitor.record_frame(33.0)
+        assert self.monitor.check(33.0, 32.9, "running") is None
+        reason = self.monitor.check(33.0, 31.9, "running")
+        assert "control_timeout:" in reason
+        assert "1.10초" in reason

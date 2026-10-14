@@ -86,6 +86,7 @@ safety:
   health:
     camera_timeout_sec: 2.0
     control_timeout_sec: 1.0
+    control_startup_timeout_sec: 5.0  # 모델 준비 이후 모터 준비에만 적용
 
 # 사용자 실험 조건. 정상 자세에서는 로봇이 중립을 유지하고 움직이지 않는다.
 experiment:

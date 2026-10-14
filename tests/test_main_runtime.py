@@ -123,6 +123,13 @@ def test_single_turn_boundary_jump_is_blocked_before_hardware_write():
         {"body_pitch": 4026, "head_pitch": 1022})
 
 
+def test_control_has_no_heartbeat_before_thread_starts():
+    config, mapper, gate = mapping()
+    loop = main.ControlLoop(None, mapper, None, config, gate)
+    assert loop.heartbeat_at is None
+    assert loop.control_phase == "waiting_for_start"
+
+
 def test_lost_person_captures_measured_position_instead_of_pending_goal():
     config, mapper, gate = mapping()
     positions = {"body_pitch": -53, "head_pitch": 1022}

@@ -21,7 +21,10 @@ class HealthMonitor:
         health = safety.get("health") or {}
         self.camera_timeout_sec = float(health.get("camera_timeout_sec", 2.0))
         self.control_timeout_sec = float(health.get("control_timeout_sec", 1.0))
-        if self.camera_timeout_sec <= 0 or self.control_timeout_sec <= 0:
+        self.control_startup_timeout_sec = float(
+            health.get("control_startup_timeout_sec", 5.0))
+        if (self.camera_timeout_sec <= 0 or self.control_timeout_sec <= 0
+                or self.control_startup_timeout_sec <= 0):
             raise ValueError("health timeout은 0 보다 커야 합니다")
         self.started_at = None
         self.last_frame_at = None
@@ -34,7 +37,7 @@ class HealthMonitor:
     def record_frame(self, now=None):
         self.last_frame_at = time.monotonic() if now is None else now
 
-    def check(self, now, control_heartbeat_at):
+    def check(self, now, control_heartbeat_at, control_phase=None):
         """문제가 있으면 사람이 읽을 수 있는 safe-stop 사유를 반환한다."""
         if self.started_at is None:
             self.start(now)
@@ -45,7 +48,12 @@ class HealthMonitor:
         elif now - self.last_frame_at > self.camera_timeout_sec:
             return "camera_timeout: 마지막 프레임이 너무 오래되었습니다"
 
+        phase = control_phase or "unknown"
+        if (control_heartbeat_at is None
+                and now - self.started_at > self.control_startup_timeout_sec):
+            return f"control_startup_timeout: 제어 준비 시간 초과 (단계={phase})"
         if (control_heartbeat_at is not None
                 and now - control_heartbeat_at > self.control_timeout_sec):
-            return "control_timeout: 제어 루프 heartbeat가 끊겼습니다"
+            return ("control_timeout: 제어 루프 heartbeat가 끊겼습니다 "
+                    f"(단계={phase}, 지연={now - control_heartbeat_at:.2f}초)")
         return None

@@ -111,7 +111,9 @@ class ControlLoop(threading.Thread):
                 "camera_timeout_sec", 2.0))
         self.last_targets = dict(self.neutral)
         self._was_person_visible = False
-        self.heartbeat_at = time.monotonic()
+        # 준비 전 객체 생성 시각을 정상 제어 heartbeat로 사용하지 않는다.
+        self.heartbeat_at = None
+        self.control_phase = "waiting_for_start"
         self.safe_stop_reason = None
         self._behavior_lock = threading.Lock()
         self._behavior_action = None
@@ -369,10 +371,13 @@ class ControlLoop(threading.Thread):
                           file=sys.stderr)
 
     def _loop(self):
+        self.control_phase = "hardware_prepare"
         if self.writer is not None and self.motion_enabled:
             self.writer.prepare()
+            self.control_phase = "initial_position_read"
             self.commanded = self.writer.read_positions()
             if callable(getattr(self.writer, "hold_current_positions", None)):
+                self.control_phase = "initial_position_hold"
                 self._capture_hold_position()
             self._rest_targets = dict(self.commanded)
             self._hardware_initialized = True
@@ -383,6 +388,7 @@ class ControlLoop(threading.Thread):
         next_tick = time.monotonic()
         while not self.stop_event.is_set():
             now = time.monotonic()
+            self.control_phase = "running"
             self.heartbeat_at = now
             # 반응 모드는 지연된 샘플이 아니라 최신 관측값만 사용한다.
             played = self.buffer.latest()
@@ -650,13 +656,15 @@ def run(args):
                 captured_at = getattr(camera, "last_captured_at", None) or now
                 capture_wait_ms = (now - capture_mark) * 1000
                 if frame is None:
-                    reason = health.check(now, control.heartbeat_at)
+                    reason = health.check(now, control.heartbeat_at,
+                                          getattr(control, "control_phase", None))
                     if reason:
                         control.safe_stop(reason)
                         raise SafeStopRequested(reason)
                     continue
                 health.record_frame(now)
-                reason = health.check(now, control.heartbeat_at)
+                reason = health.check(now, control.heartbeat_at,
+                                      getattr(control, "control_phase", None))
                 if reason:
                     control.safe_stop(reason)
                     raise SafeStopRequested(reason)

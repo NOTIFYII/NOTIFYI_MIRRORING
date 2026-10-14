@@ -22,7 +22,46 @@
 `correction.check_interval_sec: 1.0`으로 이전 방식과 비교한다. 실물 모터 없이
 인식·로그부터 시험한다. 모델/카메라 준비와 종료 시 기존 안전 정책을 유지한다.
 
-## 실행 아이콘: 최초 설치 한 번
+## Pi 성능 비교 명령
+
+`[PERF] 2.14 fps / 추론 461.8ms / 프레임 나이 497.2ms`에서는 추론이 주요 병목이다.
+이를 모델 스레드 수 조정만으로 해결한다고 가정하지 않는다. MediaPipe Tasks Python
+BaseOptions에는 `num_threads` 인자가 없다. `cv2.setNumThreads`는 OpenCV 전처리 등의
+병렬화 제어이지 MediaPipe 추론 스레드 수를 강제로 설정하는 기능이 아니다.
+
+앱·프리뷰·motion 등 카메라 사용 프로그램과 인식 전용 자동 서비스를 종료한 후:
+
+```bash
+cd ~/notiFYI
+.venv-mp-pi3/bin/python scripts/benchmark_pi_runtime.py --camera /dev/video0 --seconds 12
+```
+
+비교 항목은 기본 설정, OpenCV 1스레드, CPU 2코어 사용 범위, 추론 입력 480폭,
+320폭이다. 각 항목은 별도 프로세스에서 실행해 라이브러리 초기화가 서로 영향을 주지
+않게 한다. 코어 사용 범위는 cv2/MediaPipe import 전 자식 프로세스에만 적용한다.
+CPU 코어 제한은 추론 스레드 수 설정과 다른 시험이다.
+
+원본 카메라는 모든 시험에서 설정된 640×480 그대로 사용하고 추론 입력만 종횡비를
+유지해 축소한다. 모델은 lite다. 준비 시간과 최소 3프레임 워밍업은 FPS 집계에서
+제외한다. 마지막에 기본 설정을 다시 측정해 발열·시간 경과 영향을 살펴본다.
+각 측정 중 같은 자리에서 정상 자세를 유지한다. 센서 촬영 시각 기반 지연은 아니다.
+환경별 모델 준비를 포함해 전체 시험은 수 분 걸릴 수 있다.
+
+출력 JSON은 `data/runtime_benchmarks/`에 저장한다. 원본 영상이나 프레임은 저장하지
+않는다. FPS, 추론 p50/p95, 프레임 나이, 유효 자세 검출률, 목·몸통 지표 흔들림,
+실제 OpenCV 스레드 수·CPU 코어 범위, 전원/발열 상태를 기록한다. 가만히 앉은 시험의
+검출률·흔들림은 정확도 또는 자세 변화 반응시간 자체를 증명하지 않는다.
+
+검출 표본이 10개 미만이면 품질 판단을 보류한다. `vcgencmd`를 사용할 수 없으면
+해당 상태는 null로 표시한다. YAML, 모터 모드, Goal, 토크는 변경하지 않는다.
+현재 켜져 있는 토크를 해제하는 도구도 아니므로 로봇 상태는 별도로 확인한다.
+빠른 조건을 찾더라도 움직이는 자세·오검출·회복 반응은 추가 시험한 뒤 기본 설정을
+변경한다. Pi에서의 실제 비교 결과는 아직 확보하지 않았다.
+
+참고: [MediaPipe BaseOptions](https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/BaseOptions),
+[OpenCV 스레드 API](https://docs.opencv.org/4.10.0/db/de0/group__core__utils.html).
+
+## 실행 아이콘 설치
 
 라즈베리파이 사용자 `notifyi`의 터미널에서:
 

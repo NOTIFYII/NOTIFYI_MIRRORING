@@ -616,7 +616,16 @@ def run(args):
         response_timeout_sec=float(experiment.get("response_timeout_sec", 15.0)),
     )
     stack = ExitStack()
+    web_preview = None
     try:
+        if getattr(args, "web_preview", False):
+            from src.camera.web_preview import WebPreview
+            try:
+                web_preview = WebPreview(
+                    args.web_preview_port, args.web_preview_fps).__enter__()
+            except (OSError, ValueError) as exc:
+                sys.exit(f"웹 프리뷰 시작 실패: {exc}")
+            print(f"웹 프리뷰: http://127.0.0.1:{web_preview.port}/ (SSH 터널 사용)")
         if args.move:
             packet, port = stack.enter_context(open_bus())
             writer = build_writer((packet, port), mapper, config)
@@ -800,6 +809,12 @@ def run(args):
 
                 played = measured
 
+                if web_preview is not None and web_preview.ready():
+                    preview_frame = frame.copy()
+                    draw_preview(preview_frame, control, measured, played, echo,
+                                 angles_config, landmarks, writer, fps, condition)
+                    web_preview.submit(preview_frame)
+
                 if args.no_preview:
                     status_mark = print_status_line(
                         now, status_mark, control, measured, played, fps,
@@ -861,6 +876,8 @@ def run(args):
             recovery_latency.flush(event_logger, print_summary=args.no_preview)
             event_logger.close()
         # 제어 스레드가 아직 버스를 쓰고 있으면 메인에서 포트를 닫지 않는다.
+        if web_preview is not None:
+            web_preview.__exit__(None, None, None)
         if not (control is not None and control.ident is not None and control.is_alive()):
             stack.close()
         cv2.destroyAllWindows()
@@ -879,6 +896,11 @@ def main():
                              "생략하면 config/posture.yaml 의 perception.camera")
     parser.add_argument("--no-preview", action="store_true",
                         help="창을 띄우지 않는다 (헤드리스)")
+    parser.add_argument("--web-preview", action="store_true",
+                        help="SSH 터널용 읽기 전용 웹 프리뷰 (127.0.0.1)")
+    parser.add_argument("--web-preview-port", type=int, default=8765)
+    parser.add_argument("--web-preview-fps", type=float, default=2.0,
+                        help="웹 프리뷰 최대 FPS (0 초과~5 이하, 기본 2)")
     parser.add_argument("--no-correction", action="store_true",
                         help="자세 반응/교정 판단을 끈다")
     parser.add_argument("--condition",

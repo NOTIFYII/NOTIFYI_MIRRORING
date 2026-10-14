@@ -46,6 +46,8 @@ from src.safety.gate import SafetyGate  # noqa: E402
 from src.safety.health import HealthMonitor, SafeStopRequested  # noqa: E402
 from src.telemetry.event_log import EventLogger  # noqa: E402
 from src.telemetry.response_tracker import ResponseTracker  # noqa: E402
+from src.telemetry.performance import PerformanceWindow  # noqa: E402
+from src.runtime.instance import AlreadyRunning, instance_lock  # noqa: E402
 
 POSTURE_CONFIG = PROJECT_ROOT / "config" / "posture.yaml"
 
@@ -564,6 +566,7 @@ def run(args):
     if not log_dir.is_absolute():
         log_dir = PROJECT_ROOT / log_dir
     event_logger = EventLogger(log_dir, condition=condition)
+    performance = PerformanceWindow((config.get("telemetry") or {}).get("performance_interval_sec", 5.0))
     response_tracker = ResponseTracker(
         event_logger,
         response_timeout_sec=float(experiment.get("response_timeout_sec", 15.0)),
@@ -589,7 +592,7 @@ def run(args):
         source = args.camera or perception.get("camera",
                                                perception.get("camera_index", 0))
         with CameraStream(source, perception["width"],
-                          perception["height"]) as camera, \
+                          perception["height"], perception.get("latest_frame_only", True)) as camera, \
                 PoseEstimator(args.model
                               or perception.get("model")) as estimator:
             # 모델/카메라 준비가 성공한 뒤에만 모터 제어를 시작한다.
@@ -603,8 +606,11 @@ def run(args):
             start = time.monotonic()
             health.start(start)
             while not control.stop_event.is_set():
+                capture_mark = time.monotonic()
                 frame = camera.read()
                 now = time.monotonic()
+                captured_at = getattr(camera, "last_captured_at", None) or now
+                capture_wait_ms = (now - capture_mark) * 1000
                 if frame is None:
                     reason = health.check(now, control.heartbeat_at)
                     if reason:
@@ -616,13 +622,22 @@ def run(args):
                 if reason:
                     control.safe_stop(reason)
                     raise SafeStopRequested(reason)
+                inference_mark = time.monotonic()
                 landmarks, world = estimator.detect(frame,
-                                                    (now - start) * 1000.0)
+                                                    max(0, (captured_at - start) * 1000.0))
+                finished_at = time.monotonic()
+                report = performance.observe(finished_at, capture_wait_ms,
+                                              (finished_at - inference_mark) * 1000,
+                                              (finished_at - captured_at) * 1000)
+                if report:
+                    event_logger.record("runtime_performance", **report)
+                    if args.no_preview:
+                        print(f"[PERF] {report['processed_fps']} fps | 추론 {report['inference_ms']}ms | 프레임 지연 {report['frame_age_ms']}ms", flush=True)
 
                 measured = None
                 if landmarks and world:
                     measured = extract_angles(
-                        world, landmarks, now,
+                        world, landmarks, captured_at,
                         perception["min_visibility"],
                         perception["invert_torso"],
                         perception["invert_neck"])
@@ -637,12 +652,12 @@ def run(args):
                 else:
                     previous = None
                     median.reset()
-                    buffer.push(PostureAngles(now, 0.0, 0.0, 0.0))
+                    buffer.push(PostureAngles(captured_at, 0.0, 0.0, 0.0))
 
                 # 교정 판단 스레드에는 인식 실패도 unknown으로 전달한다.
                 # 실패 프레임을 생략하면 이전 나쁜 자세가 보이지 않은
                 # 시간까지 지속된 것으로 오인할 수 있다.
-                observed = measured or PostureAngles(now, 0.0, 0.0, 0.0)
+                observed = measured or PostureAngles(captured_at, 0.0, 0.0, 0.0)
                 if behavior is not None:
                     behavior.update_posture(observed)
                 if response_tracker is not None:
@@ -804,7 +819,13 @@ def main():
     parser.add_argument("--condition",
                         choices=("posture_trigger",),
                         help="실험 개입 조건. 생략하면 config/posture.yaml 사용")
-    return run(parser.parse_args())
+    args = parser.parse_args()
+    try:
+        with instance_lock():
+            return run(args)
+    except AlreadyRunning as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

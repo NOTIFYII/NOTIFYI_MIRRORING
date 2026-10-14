@@ -17,6 +17,7 @@ perception:
   model: lite
   width: 640
   height: 480
+  latest_frame_only: true   # 추론 중 쌓인 영상 대신 최신 프레임 하나만 처리
   min_visibility: 0.5     # 이 아래면 사람을 못 본 것으로 친다
   # 정면 카메라를 가정한다. 시상면 각은 world landmark 의 z(깊이)로 잡는데,
   # 단일 RGB 카메라에서 z 는 가장 노이즈가 큰 축이다. 흔들리면 카메라를
@@ -31,7 +32,7 @@ angles:
   max_torso_roll_deg: 30
   max_neck_yaw_deg: 30
   max_neck_roll_deg: 30
-  median_window: 7          # 7프레임이면 스파이크 방어하면서 지연 최소화
+  median_window: 3          # 저 FPS에서 변화 반영 지연 축소; 오검출은 파일럿에서 비교
   smoothing_alpha: 0.55     # 상체용. 0.55면 반응 빠르면서 떨림 억제
   neck_smoothing_alpha: 0.35  # 2D 비율은 Z축보다 안정적 → 적당히 반응
 
@@ -64,7 +65,7 @@ correction:
   max_corrections_per_run: null # 정상 복귀 후 나쁜 자세 에피소드마다 재호출
   cooldown_seconds: 0.0     # 정상 복귀/재감지 정책만으로 재호출을 제어
   escalation_seconds: 60.0  # 같은 문제 반복 시 강도 높이는 기준
-  check_interval_sec: 1.0   # 판단 스레드 체크 주기 (초)
+  check_interval_sec: 0.1   # 3초 지속 조건은 유지하고 판단 대기만 단축
 
 # LLM 판단과 하드웨어 사이의 결정론적 정책. 이 값은 모델 출력으로
 # 변경되지 않는다.
@@ -88,6 +89,7 @@ experiment:
 # 로그 분석 전용 설정. 로봇 제어/자세 판정에는 영향을 주지 않는다.
 telemetry:
   recovery_confirm_sec: 1.0  # good 후보가 관측된 시간 기준으로 회복 확정
+  performance_interval_sec: 5.0  # 영상 없이 지연·추론 시간 요약만 로그
 
 # posture_trigger에서만 사용하는 고정 개입 포즈.
 # 사용자의 관측 각도를 복사하지 않고, 자세 라벨에 따라 이 값만 호출한다.
